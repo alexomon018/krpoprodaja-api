@@ -31,7 +31,6 @@
   "license": "ISC",
   "dependencies": {
     "@epic-web/remember": "^1.1.0",
-    "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
@@ -44,7 +43,6 @@
     "jose": "^6.0.12",
     "morgan": "^1.10.1",
     "pg": "^8.16.3",
-    "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "ts-node": "^10.9.2"
   },

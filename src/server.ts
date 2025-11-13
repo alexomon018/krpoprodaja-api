@@ -9,8 +9,7 @@ import favoriteRoutes from './routes/favoriteRoutes.ts'
 import categoryRoutes from './routes/categoryRoutes.ts'
 import searchRoutes from './routes/searchRoutes.ts'
 import morgan from 'morgan'
-import swaggerJsdoc from 'swagger-jsdoc'
-import swaggerUi from 'swagger-ui-express'
+import { setupSwagger } from './swagger.ts'
 
 const app = express()
 
@@ -30,65 +29,8 @@ app.use(
   })
 )
 
-// Swagger configuration
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'KrpoProdaja API',
-      version: '1.0.0',
-      description: 'Serbian marketplace API for buying and selling second-hand items',
-      contact: {
-        name: 'API Support',
-      },
-    },
-    servers: [
-      {
-        url: isDev() ? `http://localhost:${env.PORT}` : env.API_URL || 'https://api.krpoprodaja.com',
-        description: isDev() ? 'Development server' : 'Production server',
-      },
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Enter your JWT token obtained from /api/auth/login or /api/auth/register',
-        },
-      },
-      schemas: {
-        Error: {
-          type: 'object',
-          properties: {
-            error: {
-              type: 'string',
-            },
-            details: {
-              type: 'string',
-            },
-          },
-        },
-      },
-    },
-    security: [],
-  },
-  apis: ['./src/routes/*.ts', './src/controllers/*.ts'],
-}
-
-const swaggerSpec = swaggerJsdoc(swaggerOptions)
-
-// Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'KrpoProdaja API Docs',
-}))
-
-// Swagger JSON endpoint
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json')
-  res.send(swaggerSpec)
-})
+// Setup Swagger documentation
+setupSwagger(app)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
