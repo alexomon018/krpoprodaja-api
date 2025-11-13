@@ -8,6 +8,8 @@ import {
   integer,
   decimal,
   json,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
@@ -70,7 +72,25 @@ export const products = pgTable('products', {
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Most important: composite index for listing queries
+  statusCreatedAtIdx: index('products_status_created_at_idx').on(table.status, table.createdAt.desc()),
+
+  // Foreign key indexes for joins
+  sellerIdIdx: index('products_seller_id_idx').on(table.sellerId),
+  categoryIdIdx: index('products_category_id_idx').on(table.categoryId),
+
+  // Filter indexes
+  priceIdx: index('products_price_idx').on(table.price),
+  sizeIdx: index('products_size_idx').on(table.size),
+  conditionIdx: index('products_condition_idx').on(table.condition),
+  brandIdx: index('products_brand_idx').on(table.brand),
+  locationIdx: index('products_location_idx').on(table.location),
+
+  // Composite index for popular queries (active products sorted by date)
+  statusCategoryCreatedAtIdx: index('products_status_category_created_at_idx')
+    .on(table.status, table.categoryId, table.createdAt.desc()),
+}))
 
 // ==================== REVIEWS ====================
 
@@ -91,7 +111,18 @@ export const reviews = pgTable('reviews', {
   sellerResponseCreatedAt: timestamp('seller_response_created_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Foreign key indexes for joins
+  productIdIdx: index('reviews_product_id_idx').on(table.productId),
+  reviewerIdIdx: index('reviews_reviewer_id_idx').on(table.reviewerId),
+
+  // Composite index for product reviews sorted by date
+  productCreatedAtIdx: index('reviews_product_created_at_idx')
+    .on(table.productId, table.createdAt.desc()),
+
+  // Rating index for filtering/sorting
+  ratingIdx: index('reviews_rating_idx').on(table.rating),
+}))
 
 // ==================== FAVORITES ====================
 
@@ -104,7 +135,18 @@ export const favorites = pgTable('favorites', {
     .references(() => products.id, { onDelete: 'cascade' })
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Composite unique index to prevent duplicate favorites
+  userProductIdx: uniqueIndex('favorites_user_product_idx')
+    .on(table.userId, table.productId),
+
+  // Index for querying user's favorites sorted by date
+  userCreatedAtIdx: index('favorites_user_created_at_idx')
+    .on(table.userId, table.createdAt.desc()),
+
+  // Index for querying product's favorites
+  productIdIdx: index('favorites_product_id_idx').on(table.productId),
+}))
 
 // ==================== CONVERSATIONS ====================
 
@@ -114,7 +156,13 @@ export const conversations = pgTable('conversations', {
     .references(() => products.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Index for product-related conversations
+  productIdIdx: index('conversations_product_id_idx').on(table.productId),
+
+  // Index for sorting by recent activity
+  updatedAtIdx: index('conversations_updated_at_idx').on(table.updatedAt.desc()),
+}))
 
 // ==================== CONVERSATION PARTICIPANTS ====================
 
@@ -128,7 +176,18 @@ export const conversationParticipants = pgTable('conversation_participants', {
     .notNull(),
   unreadCount: integer('unread_count').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Unique index to prevent duplicate participants
+  conversationUserIdx: uniqueIndex('conversation_participants_conversation_user_idx')
+    .on(table.conversationId, table.userId),
+
+  // Index for querying user's conversations
+  userIdIdx: index('conversation_participants_user_id_idx').on(table.userId),
+
+  // Index for conversation lookups
+  conversationIdIdx: index('conversation_participants_conversation_id_idx')
+    .on(table.conversationId),
+}))
 
 // ==================== MESSAGES ====================
 
@@ -148,7 +207,17 @@ export const messages = pgTable('messages', {
   }>(),
   read: boolean('read').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Most important: composite index for conversation messages sorted by time
+  conversationCreatedAtIdx: index('messages_conversation_created_at_idx')
+    .on(table.conversationId, table.createdAt.desc()),
+
+  // Index for sender queries
+  senderIdIdx: index('messages_sender_id_idx').on(table.senderId),
+
+  // Index for unread messages
+  readIdx: index('messages_read_idx').on(table.read),
+}))
 
 // ==================== OFFERS ====================
 
@@ -169,7 +238,21 @@ export const offers = pgTable('offers', {
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Indexes for querying offers by different parties
+  productIdIdx: index('offers_product_id_idx').on(table.productId),
+  buyerIdIdx: index('offers_buyer_id_idx').on(table.buyerId),
+  sellerIdIdx: index('offers_seller_id_idx').on(table.sellerId),
+
+  // Composite indexes for common queries
+  productStatusIdx: index('offers_product_status_idx')
+    .on(table.productId, table.status),
+  sellerStatusIdx: index('offers_seller_status_idx')
+    .on(table.sellerId, table.status),
+
+  // Index for expiration checks
+  expiresAtIdx: index('offers_expires_at_idx').on(table.expiresAt),
+}))
 
 // ==================== PURCHASES ====================
 
@@ -198,7 +281,24 @@ export const purchases = pgTable('purchases', {
   shippingCarrier: varchar('shipping_carrier', { length: 50 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Indexes for querying purchases by different parties
+  buyerIdIdx: index('purchases_buyer_id_idx').on(table.buyerId),
+  sellerIdIdx: index('purchases_seller_id_idx').on(table.sellerId),
+  productIdIdx: index('purchases_product_id_idx').on(table.productId),
+
+  // Composite indexes for common queries
+  buyerStatusCreatedAtIdx: index('purchases_buyer_status_created_at_idx')
+    .on(table.buyerId, table.status, table.createdAt.desc()),
+  sellerStatusCreatedAtIdx: index('purchases_seller_status_created_at_idx')
+    .on(table.sellerId, table.status, table.createdAt.desc()),
+
+  // Index for status filtering
+  statusIdx: index('purchases_status_idx').on(table.status),
+
+  // Index for payment intent lookups
+  paymentIntentIdIdx: index('purchases_payment_intent_id_idx').on(table.paymentIntentId),
+}))
 
 // ==================== RELATIONS ====================
 

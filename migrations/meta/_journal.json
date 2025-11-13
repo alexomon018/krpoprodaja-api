@@ -8,6 +8,13 @@
       "when": 1763057904858,
       "tag": "0000_clammy_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763058471369,
+      "tag": "0001_careless_magma",
+      "breakpoints": true
     }
   ]
 }
