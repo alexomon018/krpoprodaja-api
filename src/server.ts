@@ -9,6 +9,7 @@ import favoriteRoutes from './routes/favoriteRoutes.ts'
 import categoryRoutes from './routes/categoryRoutes.ts'
 import searchRoutes from './routes/searchRoutes.ts'
 import morgan from 'morgan'
+import { setupSwagger } from './swagger.ts'
 
 const app = express()
 
@@ -27,6 +28,10 @@ app.use(
     skip: () => isTestEnv(),
   })
 )
+
+// Setup Swagger documentation
+setupSwagger(app)
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
