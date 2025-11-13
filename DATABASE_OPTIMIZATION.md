@@ -2,7 +2,9 @@
 
 ## Overview
 
-This document outlines the database indexing strategy for the KrpoProdaja marketplace API. The schema has been optimized with **37 strategic indexes** to handle high-traffic queries efficiently.
+This document outlines the database indexing strategy for the KrpoProdaja marketplace API. The schema has been optimized with **24 strategic indexes** to handle high-traffic queries efficiently.
+
+**Note**: Offers and purchases tables have been removed as buying/negotiation will be handled through the messaging system.
 
 ## Indexing Strategy
 
@@ -89,46 +91,7 @@ messages_read_idx (read)                      -- For unread counts
 - Loading conversation history is instant
 - Unread message counts use index scan, not table scan
 
-### 5. Offers (6 indexes)
-
-```sql
-offers_product_id_idx (product_id)
-offers_buyer_id_idx (buyer_id)
-offers_seller_id_idx (seller_id)
-
--- Composite indexes for status filtering
-offers_product_status_idx (product_id, status)
-offers_seller_status_idx (seller_id, status)
-
-offers_expires_at_idx (expires_at)            -- For expiration cleanup jobs
-```
-
-**Use Cases:**
-- Get pending offers for a seller
-- Check active offers on a product
-- Background job to expire old offers
-
-### 6. Purchases (7 indexes)
-
-```sql
-purchases_buyer_id_idx (buyer_id)
-purchases_seller_id_idx (seller_id)
-purchases_product_id_idx (product_id)
-
--- Composite indexes for order history queries
-purchases_buyer_status_created_at_idx (buyer_id, status, created_at DESC)
-purchases_seller_status_created_at_idx (seller_id, status, created_at DESC)
-
-purchases_status_idx (status)
-purchases_payment_intent_id_idx (payment_intent_id)  -- For webhook lookups
-```
-
-**Use Cases:**
-- Buyer's order history with status filters
-- Seller's sales dashboard
-- Payment provider webhooks (fast lookup by payment intent ID)
-
-### 7. Conversations (2 indexes)
+### 5. Conversations (2 indexes)
 
 ```sql
 conversations_product_id_idx (product_id)
@@ -139,7 +102,7 @@ conversations_updated_at_idx (updated_at DESC)
 - Find conversation about a specific product
 - Sort conversations by recent activity
 
-### 8. Conversation Participants (3 indexes)
+### 6. Conversation Participants (3 indexes)
 
 ```sql
 -- UNIQUE constraint to prevent duplicate participants
@@ -332,23 +295,27 @@ LIMIT 10;
 ## Summary
 
 The optimized schema now includes:
-- ✅ 37 strategic indexes
+- ✅ 24 strategic indexes
 - ✅ Unique constraints for data integrity
 - ✅ Composite indexes for complex queries
 - ✅ Descending indexes for sorting
 - ✅ Foreign key indexes for joins
+
+**Tables**: 8 core tables (users, products, categories, favorites, reviews, conversations, conversation_participants, messages)
 
 **Expected Performance:**
 - Product listing: <5ms
 - Search queries: <10ms
 - User favorites: <2ms
 - Message loading: <3ms
-- Order history: <5ms
+- Conversation history: <5ms
 
 **Trade-off:**
-- Write operations: ~2-3x slower (acceptable for read-heavy marketplace)
+- Write operations: ~2x slower (acceptable for read-heavy marketplace)
 
 ---
 
 **Last Updated**: 2025-11-13
-**Migration**: `0001_careless_magma.sql`
+**Migrations**:
+- `0001_careless_magma.sql` - Added all indexes
+- `0002_slippery_brood.sql` - Removed offers and purchases tables

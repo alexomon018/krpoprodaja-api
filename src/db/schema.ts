@@ -219,87 +219,6 @@ export const messages = pgTable('messages', {
   readIdx: index('messages_read_idx').on(table.read),
 }))
 
-// ==================== OFFERS ====================
-
-export const offers = pgTable('offers', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  productId: uuid('product_id')
-    .references(() => products.id, { onDelete: 'cascade' })
-    .notNull(),
-  buyerId: uuid('buyer_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
-  sellerId: uuid('seller_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
-  amount: integer('amount').notNull(), // Offer amount in RSD
-  message: text('message'),
-  status: varchar('status', { length: 20 }).default('pending').notNull(), // pending|accepted|rejected|expired
-  expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  // Indexes for querying offers by different parties
-  productIdIdx: index('offers_product_id_idx').on(table.productId),
-  buyerIdIdx: index('offers_buyer_id_idx').on(table.buyerId),
-  sellerIdIdx: index('offers_seller_id_idx').on(table.sellerId),
-
-  // Composite indexes for common queries
-  productStatusIdx: index('offers_product_status_idx')
-    .on(table.productId, table.status),
-  sellerStatusIdx: index('offers_seller_status_idx')
-    .on(table.sellerId, table.status),
-
-  // Index for expiration checks
-  expiresAtIdx: index('offers_expires_at_idx').on(table.expiresAt),
-}))
-
-// ==================== PURCHASES ====================
-
-export const purchases = pgTable('purchases', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  productId: uuid('product_id')
-    .references(() => products.id, { onDelete: 'set null' }),
-  buyerId: uuid('buyer_id')
-    .references(() => users.id, { onDelete: 'set null' }),
-  sellerId: uuid('seller_id')
-    .references(() => users.id, { onDelete: 'set null' }),
-  amount: integer('amount').notNull(), // Final price in RSD
-  shippingMethod: varchar('shipping_method', { length: 50 }),
-  shippingAddress: json('shipping_address').$type<{
-    fullName: string
-    phone: string
-    addressLine1: string
-    addressLine2?: string
-    city: string
-    postalCode: string
-    country: string
-  }>(),
-  status: varchar('status', { length: 20 }).default('pending').notNull(), // pending|paid|shipped|completed|cancelled
-  paymentIntentId: varchar('payment_intent_id', { length: 255 }),
-  trackingNumber: varchar('tracking_number', { length: 100 }),
-  shippingCarrier: varchar('shipping_carrier', { length: 50 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  // Indexes for querying purchases by different parties
-  buyerIdIdx: index('purchases_buyer_id_idx').on(table.buyerId),
-  sellerIdIdx: index('purchases_seller_id_idx').on(table.sellerId),
-  productIdIdx: index('purchases_product_id_idx').on(table.productId),
-
-  // Composite indexes for common queries
-  buyerStatusCreatedAtIdx: index('purchases_buyer_status_created_at_idx')
-    .on(table.buyerId, table.status, table.createdAt.desc()),
-  sellerStatusCreatedAtIdx: index('purchases_seller_status_created_at_idx')
-    .on(table.sellerId, table.status, table.createdAt.desc()),
-
-  // Index for status filtering
-  statusIdx: index('purchases_status_idx').on(table.status),
-
-  // Index for payment intent lookups
-  paymentIntentIdIdx: index('purchases_payment_intent_id_idx').on(table.paymentIntentId),
-}))
-
 // ==================== RELATIONS ====================
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -308,10 +227,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   favorites: many(favorites),
   sentMessages: many(messages),
   conversationParticipants: many(conversationParticipants),
-  offersAsBuyer: many(offers, { relationName: 'buyerOffers' }),
-  offersAsSeller: many(offers, { relationName: 'sellerOffers' }),
-  purchasesAsBuyer: many(purchases, { relationName: 'buyerPurchases' }),
-  purchasesAsSeller: many(purchases, { relationName: 'sellerPurchases' }),
 }))
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -330,8 +245,6 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   reviews: many(reviews),
   favorites: many(favorites),
   conversations: many(conversations),
-  offers: many(offers),
-  purchases: many(purchases),
 }))
 
 export const reviewsRelations = relations(reviews, ({ one }) => ({
@@ -384,40 +297,6 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, {
     fields: [messages.senderId],
     references: [users.id],
-  }),
-}))
-
-export const offersRelations = relations(offers, ({ one }) => ({
-  product: one(products, {
-    fields: [offers.productId],
-    references: [products.id],
-  }),
-  buyer: one(users, {
-    fields: [offers.buyerId],
-    references: [users.id],
-    relationName: 'buyerOffers',
-  }),
-  seller: one(users, {
-    fields: [offers.sellerId],
-    references: [users.id],
-    relationName: 'sellerOffers',
-  }),
-}))
-
-export const purchasesRelations = relations(purchases, ({ one }) => ({
-  product: one(products, {
-    fields: [purchases.productId],
-    references: [products.id],
-  }),
-  buyer: one(users, {
-    fields: [purchases.buyerId],
-    references: [users.id],
-    relationName: 'buyerPurchases',
-  }),
-  seller: one(users, {
-    fields: [purchases.sellerId],
-    references: [users.id],
-    relationName: 'sellerPurchases',
   }),
 }))
 
@@ -476,19 +355,6 @@ export const insertMessageSchema = createInsertSchema(messages, {
 })
 export const selectMessageSchema = createSelectSchema(messages)
 
-export const insertOfferSchema = createInsertSchema(offers, {
-  amount: z.number().int().positive(),
-  message: z.string().max(500).optional(),
-  status: z.enum(['pending', 'accepted', 'rejected', 'expired']).optional(),
-})
-export const selectOfferSchema = createSelectSchema(offers)
-
-export const insertPurchaseSchema = createInsertSchema(purchases, {
-  amount: z.number().int().positive(),
-  status: z.enum(['pending', 'paid', 'shipped', 'completed', 'cancelled']).optional(),
-})
-export const selectPurchaseSchema = createSelectSchema(purchases)
-
 // ==================== TYPE EXPORTS ====================
 
 export type User = typeof users.$inferSelect
@@ -514,9 +380,3 @@ export type NewConversationParticipant = typeof conversationParticipants.$inferI
 
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
-
-export type Offer = typeof offers.$inferSelect
-export type NewOffer = typeof offers.$inferInsert
-
-export type Purchase = typeof purchases.$inferSelect
-export type NewPurchase = typeof purchases.$inferInsert
