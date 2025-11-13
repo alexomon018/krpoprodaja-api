@@ -25,3 +25,24 @@ export const authenticateToken = async (
     return res.status(403).json({ error: 'Invalid or expired token' })
   }
 }
+
+export const optionalAuth = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers['authorization']
+    const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
+
+    if (token) {
+      const payload = await verifyToken(token)
+      req.user = payload
+    }
+
+    next()
+  } catch (err) {
+    // If token is invalid, just continue without user
+    next()
+  }
+}

@@ -6,11 +6,17 @@ import {
   timestamp,
   boolean,
   integer,
+  decimal,
+  json,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+import { z } from 'zod'
 
-// Users table
+// ==================== USERS ====================
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -18,121 +24,359 @@ export const users = pgTable('users', {
   password: varchar('password', { length: 255 }).notNull(),
   firstName: varchar('first_name', { length: 50 }),
   lastName: varchar('last_name', { length: 50 }),
+  name: varchar('name', { length: 100 }), // Display name
+  phone: varchar('phone', { length: 20 }),
+  avatar: text('avatar'), // URL to avatar image
+  bio: text('bio'), // Max 500 characters (validated in Zod schema)
+  location: varchar('location', { length: 100 }), // City/region
+  verified: boolean('verified').default(false).notNull(), // Email verification
+  verifiedSeller: boolean('verified_seller').default(false).notNull(), // Trusted seller badge
+  responseTime: varchar('response_time', { length: 100 }), // e.g., "Usually responds within hours"
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-// Habits table
-export const habits = pgTable('habits', {
+// ==================== CATEGORIES ====================
+
+export const categories = pgTable('categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  icon: varchar('icon', { length: 50 }), // Icon name/identifier
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ==================== PRODUCTS ====================
+
+export const products = pgTable('products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 100 }).notNull(),
+  description: text('description'),
+  price: integer('price').notNull(), // In RSD (integer)
+  originalPrice: integer('original_price'), // Original price before discount
+  images: json('images').$type<string[]>().notNull(), // Array of image URLs
+  size: varchar('size', { length: 10 }).notNull(), // XS|S|M|L|XL|XXL|XXXL
+  condition: varchar('condition', { length: 20 }).notNull(), // new|very-good|good|satisfactory
+  brand: varchar('brand', { length: 100 }),
+  color: varchar('color', { length: 50 }),
+  material: varchar('material', { length: 100 }),
+  categoryId: uuid('category_id')
+    .references(() => categories.id, { onDelete: 'set null' }),
+  location: varchar('location', { length: 100 }).notNull(),
+  status: varchar('status', { length: 20 }).default('active').notNull(), // active|reserved|sold|deleted
+  viewCount: integer('view_count').default(0).notNull(),
+  favoriteCount: integer('favorite_count').default(0).notNull(),
+  sellerId: uuid('seller_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  // Most important: composite index for listing queries
+  statusCreatedAtIdx: index('products_status_created_at_idx').on(table.status, table.createdAt.desc()),
+
+  // Foreign key indexes for joins
+  sellerIdIdx: index('products_seller_id_idx').on(table.sellerId),
+  categoryIdIdx: index('products_category_id_idx').on(table.categoryId),
+
+  // Filter indexes
+  priceIdx: index('products_price_idx').on(table.price),
+  sizeIdx: index('products_size_idx').on(table.size),
+  conditionIdx: index('products_condition_idx').on(table.condition),
+  brandIdx: index('products_brand_idx').on(table.brand),
+  locationIdx: index('products_location_idx').on(table.location),
+
+  // Composite index for popular queries (active products sorted by date)
+  statusCategoryCreatedAtIdx: index('products_status_category_created_at_idx')
+    .on(table.status, table.categoryId, table.createdAt.desc()),
+}))
+
+// ==================== REVIEWS ====================
+
+export const reviews = pgTable('reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id')
+    .references(() => products.id, { onDelete: 'cascade' })
+    .notNull(),
+  reviewerId: uuid('reviewer_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  rating: integer('rating').notNull(), // 1-5 stars
+  comment: text('comment').notNull(),
+  reviewType: varchar('review_type', { length: 50 }), // this-item|appearance|delivery-packaging|seller-service|condition
+  images: json('images').$type<string[]>(), // Optional review images
+  helpful: integer('helpful').default(0).notNull(), // Helpful vote count
+  sellerResponseComment: text('seller_response_comment'),
+  sellerResponseCreatedAt: timestamp('seller_response_created_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  // Foreign key indexes for joins
+  productIdIdx: index('reviews_product_id_idx').on(table.productId),
+  reviewerIdIdx: index('reviews_reviewer_id_idx').on(table.reviewerId),
+
+  // Composite index for product reviews sorted by date
+  productCreatedAtIdx: index('reviews_product_created_at_idx')
+    .on(table.productId, table.createdAt.desc()),
+
+  // Rating index for filtering/sorting
+  ratingIdx: index('reviews_rating_idx').on(table.rating),
+}))
+
+// ==================== FAVORITES ====================
+
+export const favorites = pgTable('favorites', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')
     .references(() => users.id, { onDelete: 'cascade' })
     .notNull(),
-  name: varchar('name', { length: 100 }).notNull(),
-  description: text('description'),
-  frequency: varchar('frequency', { length: 20 }).notNull(), // daily, weekly, monthly
-  targetCount: integer('target_count').default(1), // how many times per frequency period
-  isActive: boolean('is_active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
-
-// Habit entries table
-export const entries = pgTable('entries', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  habitId: uuid('habit_id')
-    .references(() => habits.id, { onDelete: 'cascade' })
-    .notNull(),
-  completion_date: timestamp('completion_date').defaultNow().notNull(),
-  note: text('note'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-})
-
-// Tags table
-export const tags = pgTable('tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 50 }).notNull().unique(),
-  color: varchar('color', { length: 7 }).default('#6B7280'), // hex color
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
-
-// Habit-Tags junction table (many-to-many)
-export const habitTags = pgTable('habit_tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  habitId: uuid('habit_id')
-    .references(() => habits.id, { onDelete: 'cascade' })
-    .notNull(),
-  tagId: uuid('tag_id')
-    .references(() => tags.id, { onDelete: 'cascade' })
+  productId: uuid('product_id')
+    .references(() => products.id, { onDelete: 'cascade' })
     .notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => ({
+  // Composite unique index to prevent duplicate favorites
+  userProductIdx: uniqueIndex('favorites_user_product_idx')
+    .on(table.userId, table.productId),
 
-// Relations
-export const usersRelations = relations(users, ({ many }) => ({
-  habits: many(habits),
+  // Index for querying user's favorites sorted by date
+  userCreatedAtIdx: index('favorites_user_created_at_idx')
+    .on(table.userId, table.createdAt.desc()),
+
+  // Index for querying product's favorites
+  productIdIdx: index('favorites_product_id_idx').on(table.productId),
 }))
 
-export const habitsRelations = relations(habits, ({ one, many }) => ({
-  user: one(users, {
-    fields: [habits.userId],
+// ==================== CONVERSATIONS ====================
+
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id')
+    .references(() => products.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  // Index for product-related conversations
+  productIdIdx: index('conversations_product_id_idx').on(table.productId),
+
+  // Index for sorting by recent activity
+  updatedAtIdx: index('conversations_updated_at_idx').on(table.updatedAt.desc()),
+}))
+
+// ==================== CONVERSATION PARTICIPANTS ====================
+
+export const conversationParticipants = pgTable('conversation_participants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id')
+    .references(() => conversations.id, { onDelete: 'cascade' })
+    .notNull(),
+  userId: uuid('user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  unreadCount: integer('unread_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  // Unique index to prevent duplicate participants
+  conversationUserIdx: uniqueIndex('conversation_participants_conversation_user_idx')
+    .on(table.conversationId, table.userId),
+
+  // Index for querying user's conversations
+  userIdIdx: index('conversation_participants_user_id_idx').on(table.userId),
+
+  // Index for conversation lookups
+  conversationIdIdx: index('conversation_participants_conversation_id_idx')
+    .on(table.conversationId),
+}))
+
+// ==================== MESSAGES ====================
+
+export const messages = pgTable('messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id')
+    .references(() => conversations.id, { onDelete: 'cascade' })
+    .notNull(),
+  senderId: uuid('sender_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  content: text('content').notNull(),
+  type: varchar('type', { length: 20 }).default('text').notNull(), // text|offer|system
+  metadata: json('metadata').$type<{
+    offerAmount?: number
+    offerStatus?: string
+  }>(),
+  read: boolean('read').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  // Most important: composite index for conversation messages sorted by time
+  conversationCreatedAtIdx: index('messages_conversation_created_at_idx')
+    .on(table.conversationId, table.createdAt.desc()),
+
+  // Index for sender queries
+  senderIdIdx: index('messages_sender_id_idx').on(table.senderId),
+
+  // Index for unread messages
+  readIdx: index('messages_read_idx').on(table.read),
+}))
+
+// ==================== RELATIONS ====================
+
+export const usersRelations = relations(users, ({ many }) => ({
+  products: many(products),
+  reviews: many(reviews),
+  favorites: many(favorites),
+  sentMessages: many(messages),
+  conversationParticipants: many(conversationParticipants),
+}))
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  products: many(products),
+}))
+
+export const productsRelations = relations(products, ({ one, many }) => ({
+  seller: one(users, {
+    fields: [products.sellerId],
     references: [users.id],
   }),
-  entries: many(entries),
-  habitTags: many(habitTags),
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id],
+  }),
+  reviews: many(reviews),
+  favorites: many(favorites),
+  conversations: many(conversations),
 }))
 
-export const entriesRelations = relations(entries, ({ one }) => ({
-  habit: one(habits, {
-    fields: [entries.habitId],
-    references: [habits.id],
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  product: one(products, {
+    fields: [reviews.productId],
+    references: [products.id],
+  }),
+  reviewer: one(users, {
+    fields: [reviews.reviewerId],
+    references: [users.id],
   }),
 }))
 
-export const tagsRelations = relations(tags, ({ many }) => ({
-  habitTags: many(habitTags),
-}))
-
-export const habitTagsRelations = relations(habitTags, ({ one }) => ({
-  habit: one(habits, {
-    fields: [habitTags.habitId],
-    references: [habits.id],
+export const favoritesRelations = relations(favorites, ({ one }) => ({
+  user: one(users, {
+    fields: [favorites.userId],
+    references: [users.id],
   }),
-  tag: one(tags, {
-    fields: [habitTags.tagId],
-    references: [tags.id],
+  product: one(products, {
+    fields: [favorites.productId],
+    references: [products.id],
   }),
 }))
 
-// Zod schemas for validation (optional but recommended)
-export const insertUserSchema = createInsertSchema(users)
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  product: one(products, {
+    fields: [conversations.productId],
+    references: [products.id],
+  }),
+  participants: many(conversationParticipants),
+  messages: many(messages),
+}))
+
+export const conversationParticipantsRelations = relations(conversationParticipants, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [conversationParticipants.conversationId],
+    references: [conversations.id],
+  }),
+  user: one(users, {
+    fields: [conversationParticipants.userId],
+    references: [users.id],
+  }),
+}))
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+}))
+
+// ==================== ZOD SCHEMAS ====================
+
+export const insertUserSchema = createInsertSchema(users, {
+  email: z.string().email(),
+  username: z.string().min(3).max(50),
+  password: z.string().min(8),
+  name: z.string().min(2).max(100).optional(),
+  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/).optional(), // E.164 format
+  bio: z.string().max(500).optional(),
+  location: z.string().max(100).optional(),
+})
 export const selectUserSchema = createSelectSchema(users)
 
-export const insertHabitSchema = createInsertSchema(habits)
-export const selectHabitSchema = createSelectSchema(habits)
+export const insertCategorySchema = createInsertSchema(categories, {
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(100),
+})
+export const selectCategorySchema = createSelectSchema(categories)
 
-export const insertEntrySchema = createInsertSchema(entries)
-export const selectEntrySchema = createSelectSchema(entries)
+export const insertProductSchema = createInsertSchema(products, {
+  title: z.string().min(10).max(100),
+  description: z.string().max(2000).optional(),
+  price: z.number().int().positive(),
+  originalPrice: z.number().int().positive().optional(),
+  images: z.array(z.string().url()).min(1).max(10),
+  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']),
+  condition: z.enum(['new', 'very-good', 'good', 'satisfactory']),
+  brand: z.string().max(100).optional(),
+  color: z.string().max(50).optional(),
+  material: z.string().max(100).optional(),
+  location: z.string().min(1).max(100),
+  status: z.enum(['active', 'reserved', 'sold', 'deleted']).optional(),
+})
+export const selectProductSchema = createSelectSchema(products)
 
-export const insertTagSchema = createInsertSchema(tags)
-export const selectTagSchema = createSelectSchema(tags)
+export const insertReviewSchema = createInsertSchema(reviews, {
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(10).max(1000),
+  reviewType: z.enum(['this-item', 'appearance', 'delivery-packaging', 'seller-service', 'condition']).optional(),
+  images: z.array(z.string().url()).max(5).optional(),
+})
+export const selectReviewSchema = createSelectSchema(reviews)
 
-export const insertHabitTagSchema = createInsertSchema(habitTags)
-export const selectHabitTagSchema = createSelectSchema(habitTags)
+export const insertFavoriteSchema = createInsertSchema(favorites)
+export const selectFavoriteSchema = createSelectSchema(favorites)
 
-// Type exports
+export const insertConversationSchema = createInsertSchema(conversations)
+export const selectConversationSchema = createSelectSchema(conversations)
+
+export const insertMessageSchema = createInsertSchema(messages, {
+  content: z.string().min(1).max(2000),
+  type: z.enum(['text', 'offer', 'system']).optional(),
+})
+export const selectMessageSchema = createSelectSchema(messages)
+
+// ==================== TYPE EXPORTS ====================
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
-export type Habit = typeof habits.$inferSelect
-export type NewHabit = typeof habits.$inferInsert
+export type Category = typeof categories.$inferSelect
+export type NewCategory = typeof categories.$inferInsert
 
-export type Entry = typeof entries.$inferSelect
-export type NewEntry = typeof entries.$inferInsert
+export type Product = typeof products.$inferSelect
+export type NewProduct = typeof products.$inferInsert
 
-export type Tag = typeof tags.$inferSelect
-export type NewTag = typeof tags.$inferInsert
+export type Review = typeof reviews.$inferSelect
+export type NewReview = typeof reviews.$inferInsert
 
-export type HabitTag = typeof habitTags.$inferSelect
-export type NewHabitTag = typeof habitTags.$inferInsert
+export type Favorite = typeof favorites.$inferSelect
+export type NewFavorite = typeof favorites.$inferInsert
+
+export type Conversation = typeof conversations.$inferSelect
+export type NewConversation = typeof conversations.$inferInsert
+
+export type ConversationParticipant = typeof conversationParticipants.$inferSelect
+export type NewConversationParticipant = typeof conversationParticipants.$inferInsert
+
+export type Message = typeof messages.$inferSelect
+export type NewMessage = typeof messages.$inferInsert

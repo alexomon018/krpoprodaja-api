@@ -1,7 +1,7 @@
 {
-  "name": "api-design-v5",
+  "name": "krpoprodaja-api",
   "version": "1.0.0",
-  "description": "Habit Tracker API for Node.js course",
+  "description": "KrpoProdaja API - Serbian Fashion Resale Marketplace",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
@@ -13,15 +13,18 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "db:seed": "node src/db/seed.ts"
+    "db:studio": "drizzle-kit studio"
   },
   "keywords": [
-    "habit-tracker",
+    "marketplace",
+    "fashion",
+    "resale",
+    "ecommerce",
     "api",
     "nodejs",
     "express",
-    "drizzle"
+    "drizzle",
+    "serbian"
   ],
   "author": "",
   "license": "ISC",

@@ -3,8 +3,11 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import authRoutes from './routes/authRoutes.ts'
-import habitRoutes from './routes/habitRoutes.ts'
 import userRoutes from './routes/userRoutes.ts'
+import productRoutes from './routes/productRoutes.ts'
+import favoriteRoutes from './routes/favoriteRoutes.ts'
+import categoryRoutes from './routes/categoryRoutes.ts'
+import searchRoutes from './routes/searchRoutes.ts'
 import morgan from 'morgan'
 
 const app = express()
@@ -29,14 +32,17 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    service: 'Habit Tracker API',
+    service: 'KrpoProdaja API',
   })
 })
 
 // Routes
 app.use('/api/auth', authRoutes)
-app.use('/api/habits', habitRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/products', productRoutes)
+app.use('/api/favorites', favoriteRoutes)
+app.use('/api/categories', categoryRoutes)
+app.use('/api/search', searchRoutes)
 
 // 404 handler
 app.use((req, res) => {

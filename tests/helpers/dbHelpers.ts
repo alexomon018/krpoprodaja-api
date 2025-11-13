@@ -1,5 +1,5 @@
 import { db } from '../../src/db/connection.ts'
-import { users, habits, entries } from '../../src/db/schema.ts'
+import { users } from '../../src/db/schema.ts'
 import { hashPassword } from '../../src/utils/password.ts'
 import { generateToken } from '../../src/utils/jwt.ts'
 
@@ -37,34 +37,7 @@ export async function createTestUser(userData: Partial<{
   return { user, token, rawPassword: defaultData.password }
 }
 
-export async function createTestHabit(userId: string, habitData: Partial<{
-  name: string
-  description: string
-  frequency: string
-  targetCount: number
-}> = {}) {
-  const defaultData = {
-    name: `Test Habit ${Date.now()}`,
-    description: 'A test habit',
-    frequency: 'daily',
-    targetCount: 1,
-    ...habitData
-  }
-
-  const [habit] = await db
-    .insert(habits)
-    .values({
-      userId,
-      ...defaultData,
-    })
-    .returning()
-
-  return habit
-}
-
 export async function cleanupDatabase() {
   // Clean up in the right order due to foreign key constraints
-  await db.delete(entries)
-  await db.delete(habits)
   await db.delete(users)
 }
