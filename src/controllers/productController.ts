@@ -95,7 +95,7 @@ export async function createProduct(req: Request, res: Response) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation failed',
-        details: error.errors,
+        details: error.issues,
       })
     }
     console.error('Error creating product:', error)
@@ -380,7 +380,7 @@ export async function updateProduct(req: Request, res: Response) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation failed',
-        details: error.errors,
+        details: error.issues,
       })
     }
     console.error('Error updating product:', error)
@@ -479,7 +479,7 @@ export async function updateProductStatus(req: Request, res: Response) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: 'Validation failed',
-        details: error.errors,
+        details: error.issues,
       })
     }
     console.error('Error updating product status:', error)
