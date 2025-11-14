@@ -25,27 +25,23 @@ export async function getFavorites(req: Request, res: Response) {
       .select({
         id: favorites.id,
         createdAt: favorites.createdAt,
-        product: {
-          id: products.id,
-          title: products.title,
-          price: products.price,
-          originalPrice: products.originalPrice,
-          images: products.images,
-          size: products.size,
-          condition: products.condition,
-          brand: products.brand,
-          location: products.location,
-          status: products.status,
-          viewCount: products.viewCount,
-          favoriteCount: products.favoriteCount,
-          createdAt: products.createdAt,
-          seller: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar,
-            verifiedSeller: users.verifiedSeller,
-          },
-        },
+        productId: products.id,
+        productTitle: products.title,
+        productPrice: products.price,
+        productOriginalPrice: products.originalPrice,
+        productImages: products.images,
+        productSize: products.size,
+        productCondition: products.condition,
+        productBrand: products.brand,
+        productLocation: products.location,
+        productStatus: products.status,
+        productViewCount: products.viewCount,
+        productFavoriteCount: products.favoriteCount,
+        productCreatedAt: products.createdAt,
+        sellerId: users.id,
+        sellerUsername: users.username,
+        sellerAvatar: users.avatar,
+        sellerVerifiedSeller: users.verifiedSeller,
       })
       .from(favorites)
       .leftJoin(products, eq(favorites.productId, products.id))
@@ -54,6 +50,33 @@ export async function getFavorites(req: Request, res: Response) {
       .orderBy(desc(favorites.createdAt))
       .limit(limitNum)
       .offset(offset)
+
+    // Transform the flat data into nested structure
+    const formattedData = favoritesData.map((item) => ({
+      id: item.id,
+      createdAt: item.createdAt,
+      product: {
+        id: item.productId,
+        title: item.productTitle,
+        price: item.productPrice,
+        originalPrice: item.productOriginalPrice,
+        images: item.productImages,
+        size: item.productSize,
+        condition: item.productCondition,
+        brand: item.productBrand,
+        location: item.productLocation,
+        status: item.productStatus,
+        viewCount: item.productViewCount,
+        favoriteCount: item.productFavoriteCount,
+        createdAt: item.productCreatedAt,
+        seller: {
+          id: item.sellerId,
+          username: item.sellerUsername,
+          avatar: item.sellerAvatar,
+          verifiedSeller: item.sellerVerifiedSeller,
+        },
+      },
+    }))
 
     // Get total count
     const [{ count }] = await db
@@ -64,7 +87,7 @@ export async function getFavorites(req: Request, res: Response) {
     const totalPages = Math.ceil(count / limitNum)
 
     return res.status(200).json({
-      data: favoritesData,
+      data: formattedData,
       pagination: {
         currentPage: pageNum,
         totalPages,
