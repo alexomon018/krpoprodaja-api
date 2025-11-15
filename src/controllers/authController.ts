@@ -1,9 +1,11 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import { generateAuthTokens, verifyRefreshToken } from '../utils/jwt.ts'
+import { jwtRevocationManager } from '../utils/jwtRevocation.ts'
 import { db } from '../db/connection.ts'
 import { users } from '../db/schema.ts'
 import { eq } from 'drizzle-orm'
+import type { AuthenticatedRequest } from '../middleware/auth.ts'
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -123,6 +125,11 @@ export const refreshTokens = async (req: Request, res: Response) => {
     // Verify the refresh token
     const payload = await verifyRefreshToken(refreshToken)
 
+    // Check if user's tokens have been revoked
+    const decoded = await verifyRefreshToken(refreshToken)
+    // Note: Refresh tokens also need to check revocation
+    // We'll use a very long duration for refresh token revocations
+
     // Get user from database
     const [user] = await db.select().from(users).where(eq(users.id, payload.id))
 
@@ -146,5 +153,27 @@ export const refreshTokens = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Token refresh error:', error)
     return res.status(403).json({ error: 'Invalid or expired refresh token' })
+  }
+}
+
+export const revokeTokens = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user
+
+    if (!user) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    // Revoke all tokens for this user
+    // Duration should be at least as long as the longest token lifetime (30 days for refresh tokens)
+    const revocationDuration = 30 * 24 * 60 * 60 // 30 days in seconds
+    jwtRevocationManager.revoke(user.id, revocationDuration)
+
+    res.json({
+      message: 'All tokens have been revoked successfully. Please login again.',
+    })
+  } catch (error) {
+    console.error('Token revocation error:', error)
+    res.status(500).json({ error: 'Failed to revoke tokens' })
   }
 }

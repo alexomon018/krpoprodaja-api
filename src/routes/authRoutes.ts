@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { register, login, verifyToken, refreshTokens } from '../controllers/authController.ts'
+import { register, login, verifyToken, refreshTokens, revokeTokens } from '../controllers/authController.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { authenticateToken } from '../middleware/auth.ts'
 import { z } from 'zod'
@@ -32,6 +32,7 @@ const refreshTokenSchema = z.object({
 router.post('/register', validateBody(insertUserSchema), register)
 router.post('/login', validateBody(loginSchema), login)
 router.post('/refresh', validateBody(refreshTokenSchema), refreshTokens)
+router.post('/revoke', authenticateToken, revokeTokens)
 router.get('/verify', authenticateToken, verifyToken)
 
 export default router

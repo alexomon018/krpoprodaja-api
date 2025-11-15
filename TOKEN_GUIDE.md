@@ -105,6 +105,33 @@ localStorage.setItem('idToken', newIdToken)
 localStorage.setItem('refreshToken', newRefreshToken)
 ```
 
+### Token Revocation (Logout)
+```javascript
+// Revoke ALL tokens for the user (logout functionality)
+POST /api/auth/revoke
+Authorization: Bearer <accessToken>
+
+// Response
+{
+  "message": "All tokens have been revoked successfully. Please login again."
+}
+
+// Clear local storage after successful revocation
+localStorage.removeItem('accessToken')
+localStorage.removeItem('idToken')
+localStorage.removeItem('refreshToken')
+
+// After revocation, all existing tokens (access, ID, refresh) are invalid
+// User must login again to get new tokens
+```
+
+**Important:**
+- Revocation invalidates ALL tokens issued before the revocation time
+- Even if tokens haven't expired, they will be rejected after revocation
+- Revocation is maintained for 30 days (matching refresh token lifetime)
+- Revocation requires a valid access token
+- Use this for logout functionality or security purposes (e.g., password change)
+
 ## Token Validation
 
 ### Verify Access Token

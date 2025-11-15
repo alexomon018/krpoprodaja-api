@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyAccessToken, type AccessTokenPayload } from '../utils/jwt.ts'
+import { jwtRevocationManager } from '../utils/jwtRevocation.ts'
+import { decodeJwt } from 'jose'
 
 export interface AuthenticatedRequest extends Request {
   user?: AccessTokenPayload
@@ -8,6 +10,7 @@ export interface AuthenticatedRequest extends Request {
 /**
  * Middleware to authenticate requests using access tokens
  * Expects: Authorization: Bearer <accessToken>
+ * Also checks if the token has been revoked
  */
 export const authenticateToken = async (
   req: AuthenticatedRequest,
@@ -24,6 +27,20 @@ export const authenticateToken = async (
 
     // Verify access token (only accepts tokens with type: 'access')
     const payload = await verifyAccessToken(token)
+
+    // Decode to get the iat (issued at) claim
+    const decoded = decodeJwt(token)
+    const issuedAt = decoded.iat
+
+    if (!issuedAt) {
+      return res.status(403).json({ error: 'Invalid token: missing issued-at claim' })
+    }
+
+    // Check if token has been revoked
+    if (!jwtRevocationManager.isValid(payload.id, issuedAt)) {
+      return res.status(401).json({ error: 'Token has been revoked. Please login again.' })
+    }
+
     req.user = payload
     next()
   } catch (err) {

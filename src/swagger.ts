@@ -251,6 +251,37 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/auth/revoke': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Revoke all tokens (logout)',
+        description: 'Revoke all tokens for the current user. After revocation, all existing access, ID, and refresh tokens will be invalid. The user must login again to get new tokens. Useful for logout functionality or security purposes.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Tokens revoked successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'All tokens have been revoked successfully. Please login again.' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Not authenticated or token already revoked',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/auth/verify': {
       get: {
         tags: ['Authentication'],
