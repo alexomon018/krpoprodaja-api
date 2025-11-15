@@ -24,6 +24,8 @@ export const register = async (req: Request, res: Response) => {
         password: hashedPassword,
         firstName,
         lastName,
+        authProvider: 'email',
+        linkedProviders: ['email'],
       })
       .returning({
         id: users.id,
@@ -63,6 +65,13 @@ export const login = async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    // Check if user has a password (not OAuth-only user)
+    if (!user.password) {
+      return res.status(401).json({
+        error: 'This account uses social sign-in. Please login with Google or Facebook.'
+      })
     }
 
     // Verify password
