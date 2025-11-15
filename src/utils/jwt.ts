@@ -74,7 +74,7 @@ export const generateAccessToken = async (userId: string): Promise<string> => {
     type: 'access',
   }
 
-  return await new SignJWT(payload)
+  return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setExpirationTime('30m') // 30 minutes
@@ -98,7 +98,7 @@ export const generateIdToken = async (user: TokenUserData): Promise<string> => {
     type: 'id',
   }
 
-  return await new SignJWT(payload)
+  return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setExpirationTime('30m') // 30 minutes
@@ -120,7 +120,7 @@ export const generateRefreshToken = async (userId: string): Promise<string> => {
     type: 'refresh',
   }
 
-  return await new SignJWT(payload)
+  return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setExpirationTime(env.REFRESH_TOKEN_EXPIRES_IN || '30d')
@@ -160,7 +160,10 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenPaylo
     throw new Error('Invalid token type: expected access token')
   }
 
-  return payload as AccessTokenPayload
+  return {
+    id: payload.id as string,
+    type: 'access',
+  }
 }
 
 /**
@@ -177,7 +180,14 @@ export const verifyIdToken = async (token: string): Promise<IdTokenPayload> => {
     throw new Error('Invalid token type: expected ID token')
   }
 
-  return payload as IdTokenPayload
+  return {
+    id: payload.id as string,
+    email: payload.email as string,
+    username: payload.username as string,
+    firstName: (payload.firstName as string) || null,
+    lastName: (payload.lastName as string) || null,
+    type: 'id',
+  }
 }
 
 /**
@@ -195,7 +205,10 @@ export const verifyRefreshToken = async (token: string): Promise<RefreshTokenPay
     throw new Error('Invalid token type: expected refresh token')
   }
 
-  return payload as RefreshTokenPayload
+  return {
+    id: payload.id as string,
+    type: 'refresh',
+  }
 }
 
 /**

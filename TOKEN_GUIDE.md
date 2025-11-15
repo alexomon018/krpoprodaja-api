@@ -67,15 +67,30 @@ POST /api/auth/login
   "refreshToken": "eyJ..."   // Store securely
 }
 
-// 2. Store tokens
-localStorage.setItem('accessToken', accessToken)
-localStorage.setItem('idToken', idToken)
-localStorage.setItem('refreshToken', refreshToken) // Or httpOnly cookie
+// 2. Store tokens securely in httpOnly cookies (RECOMMENDED)
+// Backend should set these cookies in the response:
+// Set-Cookie: accessToken=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=1800
+// Set-Cookie: idToken=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=1800
+// Set-Cookie: refreshToken=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000
+
+// ALTERNATIVE (less secure): Store in memory or sessionStorage
+// ⚠️ DO NOT use localStorage for sensitive tokens - vulnerable to XSS attacks
+// Only use this approach for development/testing
+sessionStorage.setItem('accessToken', accessToken)
+sessionStorage.setItem('idToken', idToken)
+sessionStorage.setItem('refreshToken', refreshToken)
 ```
 
 ### Making API Requests
 ```javascript
-// Use access token for API requests
+// RECOMMENDED: If using httpOnly cookies
+// Tokens are automatically sent with requests
+const response = await fetch('/api/users/profile', {
+  credentials: 'include'  // Required to send cookies
+})
+
+// ALTERNATIVE: If using manual storage (development only)
+const accessToken = sessionStorage.getItem('accessToken')
 const response = await fetch('/api/users/profile', {
   headers: {
     'Authorization': `Bearer ${accessToken}`
@@ -99,10 +114,11 @@ POST /api/auth/refresh
   "refreshToken": "eyJ..."    // New refresh token
 }
 
-// Update stored tokens
-localStorage.setItem('accessToken', newAccessToken)
-localStorage.setItem('idToken', newIdToken)
-localStorage.setItem('refreshToken', newRefreshToken)
+// If using cookies: Backend sets new cookie values automatically
+// If using manual storage: Update stored tokens
+sessionStorage.setItem('accessToken', newAccessToken)
+sessionStorage.setItem('idToken', newIdToken)
+sessionStorage.setItem('refreshToken', newRefreshToken)
 ```
 
 ### Token Revocation (Logout)
@@ -116,10 +132,15 @@ Authorization: Bearer <accessToken>
   "message": "All tokens have been revoked successfully. Please login again."
 }
 
-// Clear local storage after successful revocation
-localStorage.removeItem('accessToken')
-localStorage.removeItem('idToken')
-localStorage.removeItem('refreshToken')
+// If using cookies: Backend should clear cookies
+// Set-Cookie: accessToken=; HttpOnly; Secure; SameSite=Strict; Max-Age=0
+// Set-Cookie: idToken=; HttpOnly; Secure; SameSite=Strict; Max-Age=0
+// Set-Cookie: refreshToken=; HttpOnly; Secure; SameSite=Strict; Max-Age=0
+
+// If using manual storage: Clear tokens
+sessionStorage.removeItem('accessToken')
+sessionStorage.removeItem('idToken')
+sessionStorage.removeItem('refreshToken')
 
 // After revocation, all existing tokens (access, ID, refresh) are invalid
 // User must login again to get new tokens
@@ -152,22 +173,78 @@ Authorization: Bearer <accessToken>
 
 ## Security Best Practices
 
-### 1. Token Storage
-- **Access Token**: Short-lived, can be stored in memory or localStorage
-- **ID Token**: Short-lived, can be stored in memory or localStorage
-- **Refresh Token**: Long-lived, store in httpOnly cookie (recommended) or secure storage
+### 1. Token Storage (CRITICAL)
+
+**RECOMMENDED: httpOnly Cookies**
+- **Access Token**: Store in httpOnly cookie (30 min expiry)
+- **ID Token**: Store in httpOnly cookie (30 min expiry)
+- **Refresh Token**: Store in httpOnly cookie (30 days expiry)
+- **Benefits**: Protected from XSS attacks, automatic sending, SameSite protection
+
+**Cookie Attributes:**
+```
+Set-Cookie: accessToken=<token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800
+```
+- `HttpOnly`: Prevents JavaScript access (XSS protection)
+- `Secure`: Only sent over HTTPS
+- `SameSite=Strict`: CSRF protection
+- `Max-Age`: Token lifetime in seconds
+
+**ALTERNATIVE (Development Only):**
+- Store in memory (lost on page refresh) or sessionStorage
+- ⚠️ **NEVER use localStorage** - highly vulnerable to XSS attacks
+- Only for development/testing environments
 
 ### 2. Token Usage
+- ✅ **DO**: Use httpOnly cookies for production
 - ✅ **DO**: Use access tokens for API authorization
 - ✅ **DO**: Refresh tokens before they expire
 - ✅ **DO**: Use ID tokens for displaying user information
+- ✅ **DO**: Set SameSite=Strict on cookies
+- ✅ **DO**: Use HTTPS in production
 - ❌ **DON'T**: Send ID tokens or refresh tokens in API Authorization headers
-- ❌ **DON'T**: Store refresh tokens in localStorage (use httpOnly cookies)
+- ❌ **DON'T**: Store tokens in localStorage (XSS vulnerability)
+- ❌ **DON'T**: Share tokens across domains
 
 ### 3. Error Handling
+
+**With Cookies (RECOMMENDED):**
 ```javascript
 async function apiRequest(url, options = {}) {
-  const accessToken = localStorage.getItem('accessToken')
+  let response = await fetch(url, {
+    ...options,
+    credentials: 'include'  // Automatically sends cookies
+  })
+
+  // If token expired, refresh and retry
+  if (response.status === 401 || response.status === 403) {
+    const refreshResponse = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',  // Sends refresh token cookie
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (refreshResponse.ok) {
+      // Backend automatically sets new cookies
+      // Retry original request
+      response = await fetch(url, {
+        ...options,
+        credentials: 'include'
+      })
+    } else {
+      // Refresh failed, redirect to login
+      window.location.href = '/login'
+    }
+  }
+
+  return response
+}
+```
+
+**With Manual Storage (Development Only):**
+```javascript
+async function apiRequest(url, options = {}) {
+  const accessToken = sessionStorage.getItem('accessToken')
 
   let response = await fetch(url, {
     ...options,
@@ -179,7 +256,7 @@ async function apiRequest(url, options = {}) {
 
   // If token expired, refresh and retry
   if (response.status === 401 || response.status === 403) {
-    const refreshToken = localStorage.getItem('refreshToken')
+    const refreshToken = sessionStorage.getItem('refreshToken')
     const refreshResponse = await fetch('/api/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -188,9 +265,9 @@ async function apiRequest(url, options = {}) {
 
     if (refreshResponse.ok) {
       const { accessToken, idToken, refreshToken: newRefreshToken } = await refreshResponse.json()
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('idToken', idToken)
-      localStorage.setItem('refreshToken', newRefreshToken)
+      sessionStorage.setItem('accessToken', accessToken)
+      sessionStorage.setItem('idToken', idToken)
+      sessionStorage.setItem('refreshToken', newRefreshToken)
 
       // Retry original request
       response = await fetch(url, {
