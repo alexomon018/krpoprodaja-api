@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { register, login, verifyToken } from '../controllers/authController.ts'
+import { register, login, verifyToken, refreshTokens } from '../controllers/authController.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { authenticateToken } from '../middleware/auth.ts'
 import { z } from 'zod'
@@ -24,9 +24,14 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+})
+
 // Routes
 router.post('/register', validateBody(insertUserSchema), register)
 router.post('/login', validateBody(loginSchema), login)
+router.post('/refresh', validateBody(refreshTokenSchema), refreshTokens)
 router.get('/verify', authenticateToken, verifyToken)
 
 export default router

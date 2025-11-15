@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
-import { generateToken } from '../utils/jwt.ts'
+import { generateAuthTokens, verifyRefreshToken } from '../utils/jwt.ts'
 import { db } from '../db/connection.ts'
 import { users } from '../db/schema.ts'
 import { eq } from 'drizzle-orm'
@@ -32,17 +32,19 @@ export const register = async (req: Request, res: Response) => {
         createdAt: users.createdAt,
       })
 
-    // Generate JWT
-    const token = await generateToken({
+    // Generate authentication tokens (access, ID, and refresh)
+    const tokens = await generateAuthTokens({
       id: newUser.id,
       email: newUser.email,
       username: newUser.username,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
     })
 
     res.status(201).json({
       message: 'User created successfully',
       user: newUser,
-      token,
+      ...tokens,
     })
   } catch (error) {
     console.error('Registration error:', error)
@@ -68,11 +70,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    // Generate JWT
-    const token = await generateToken({
+    // Generate authentication tokens (access, ID, and refresh)
+    const tokens = await generateAuthTokens({
       id: user.id,
       email: user.email,
       username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
     })
 
     res.json({
@@ -84,7 +88,7 @@ export const login = async (req: Request, res: Response) => {
         firstName: user.firstName,
         lastName: user.lastName,
       },
-      token,
+      ...tokens,
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -105,5 +109,42 @@ export const verifyToken = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Token verification error:', error)
     res.status(500).json({ error: 'Failed to verify token' })
+  }
+}
+
+export const refreshTokens = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh token required' })
+    }
+
+    // Verify the refresh token
+    const payload = await verifyRefreshToken(refreshToken)
+
+    // Get user from database
+    const [user] = await db.select().from(users).where(eq(users.id, payload.id))
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    // Generate new access and ID tokens (keep the same refresh token)
+    const tokens = await generateAuthTokens({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    })
+
+    res.json({
+      message: 'Tokens refreshed successfully',
+      ...tokens,
+    })
+  } catch (error) {
+    console.error('Token refresh error:', error)
+    return res.status(403).json({ error: 'Invalid or expired refresh token' })
   }
 }
