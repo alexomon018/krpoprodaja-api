@@ -21,7 +21,7 @@ const swaggerDocument = {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: 'Enter your JWT token obtained from /api/auth/login or /api/auth/register',
+        description: 'Enter your ACCESS TOKEN (not ID token or refresh token) obtained from /api/auth/login, /api/auth/register, or /api/auth/refresh',
       },
     },
     schemas: {
@@ -31,6 +31,15 @@ const swaggerDocument = {
           error: { type: 'string' },
           details: { type: 'string' },
         },
+      },
+      AuthTokens: {
+        type: 'object',
+        properties: {
+          accessToken: { type: 'string', description: 'Short-lived token for API access (30 minutes). Use in Authorization header.' },
+          idToken: { type: 'string', description: 'Short-lived token containing user identity (30 minutes)' },
+          refreshToken: { type: 'string', description: 'Long-lived token to obtain new access/ID tokens (30 days)' },
+        },
+        required: ['accessToken', 'idToken', 'refreshToken'],
       },
       User: {
         type: 'object',
@@ -129,8 +138,11 @@ const swaggerDocument = {
                 schema: {
                   type: 'object',
                   properties: {
+                    message: { type: 'string', example: 'User created successfully' },
                     user: { $ref: '#/components/schemas/User' },
-                    token: { type: 'string', description: 'JWT authentication token' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
                   },
                 },
               },
@@ -171,8 +183,11 @@ const swaggerDocument = {
                 schema: {
                   type: 'object',
                   properties: {
+                    message: { type: 'string', example: 'Login successful' },
                     user: { $ref: '#/components/schemas/User' },
-                    token: { type: 'string', description: 'JWT authentication token' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
                   },
                 },
               },
@@ -180,6 +195,127 @@ const swaggerDocument = {
           },
           '401': {
             description: 'Invalid credentials',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/refresh': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Refresh access and ID tokens',
+        description: 'Use a valid refresh token to obtain new access and ID tokens. This allows users to stay authenticated without re-entering credentials.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['refreshToken'],
+                properties: {
+                  refreshToken: { type: 'string', description: 'Valid refresh token from login/register' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Tokens refreshed successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Tokens refreshed successfully' },
+                    accessToken: { type: 'string', description: 'New access token (30 min)' },
+                    idToken: { type: 'string', description: 'New ID token (30 min)' },
+                    refreshToken: { type: 'string', description: 'New refresh token (30 days)' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Refresh token required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '403': {
+            description: 'Invalid or expired refresh token',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '404': {
+            description: 'User not found',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/revoke': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Revoke all tokens (logout)',
+        description: 'Revoke all tokens for the current user. After revocation, all existing access, ID, and refresh tokens will be invalid. The user must login again to get new tokens. Useful for logout functionality or security purposes.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Tokens revoked successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'All tokens have been revoked successfully. Please login again.' },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Not authenticated or token already revoked',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/verify': {
+      get: {
+        tags: ['Authentication'],
+        summary: 'Verify access token',
+        description: 'Verify that the provided access token is valid and not expired. Used by the Next.js middleware to validate user sessions. Only accepts access tokens (not ID or refresh tokens).',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Token is valid',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    valid: { type: 'boolean', example: true },
+                    user: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        email: { type: 'string', format: 'email' },
+                        username: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Access token required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '403': {
+            description: 'Invalid or expired token',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
