@@ -11,7 +11,7 @@ const swaggerDocument = {
   },
   servers: [
     {
-      url: 'http://localhost:3000',
+      url: 'http://localhost:8080',
       description: 'Development server',
     },
   ],
@@ -189,14 +189,28 @@ const swaggerDocument = {
       get: {
         tags: ['Users'],
         summary: 'Get current user profile',
+        description: 'Retrieve the authenticated user profile information',
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
             description: 'User profile retrieved successfully',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } },
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    user: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
           },
           '401': {
-            description: 'Unauthorized',
+            description: 'Unauthorized - Invalid or missing token',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '404': {
+            description: 'User not found',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
