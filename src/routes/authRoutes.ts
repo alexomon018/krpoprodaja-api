@@ -1,6 +1,7 @@
 import { Router } from 'express'
-import { register, login } from '../controllers/authController.ts'
+import { register, login, verifyToken } from '../controllers/authController.ts'
 import { validateBody } from '../middleware/validation.ts'
+import { authenticateToken } from '../middleware/auth.ts'
 import { z } from 'zod'
 import { insertUserSchema } from '../db/schema.ts'
 
@@ -26,5 +27,6 @@ const loginSchema = z.object({
 // Routes
 router.post('/register', validateBody(insertUserSchema), register)
 router.post('/login', validateBody(loginSchema), login)
+router.get('/verify', authenticateToken, verifyToken)
 
 export default router

@@ -185,6 +185,45 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/auth/verify': {
+      get: {
+        tags: ['Authentication'],
+        summary: 'Verify JWT token',
+        description: 'Verify that the provided JWT token is valid and not expired. Used by the Next.js middleware to validate user sessions.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Token is valid',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    valid: { type: 'boolean', example: true },
+                    user: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        email: { type: 'string', format: 'email' },
+                        username: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Access token required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '403': {
+            description: 'Invalid or expired token',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/users/profile': {
       get: {
         tags: ['Users'],

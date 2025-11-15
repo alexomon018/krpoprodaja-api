@@ -91,3 +91,19 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to login' })
   }
 }
+
+export const verifyToken = async (req: Request, res: Response) => {
+  try {
+    // The authenticateToken middleware has already validated the token
+    // and attached the user payload to req.user
+    const user = (req as any).user
+
+    res.json({
+      valid: true,
+      user,
+    })
+  } catch (error) {
+    console.error('Token verification error:', error)
+    res.status(500).json({ error: 'Failed to verify token' })
+  }
+}
