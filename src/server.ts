@@ -13,7 +13,11 @@ import { setupSwagger } from './swagger.ts'
 
 const app = express()
 
-app.use(helmet())
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable CSP for Swagger UI
+  })
+)
 app.use(
   cors({
     origin: env.CORS_ORIGIN,
