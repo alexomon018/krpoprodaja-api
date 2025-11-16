@@ -321,6 +321,144 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/auth/google': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Google OAuth sign-in',
+        description: 'Authenticate or register a user using Google OAuth. If a user with the same email exists, the Google account will be linked. If not, a new user will be created.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['token'],
+                properties: {
+                  token: {
+                    type: 'string',
+                    description: 'Google ID token obtained from Google Sign-In',
+                    example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjFlOWdkazcifQ...',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Login successful - existing user',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Login successful' },
+                    user: { $ref: '#/components/schemas/User' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
+                  },
+                },
+              },
+            },
+          },
+          '201': {
+            description: 'User created successfully - new user',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'User created successfully' },
+                    user: { $ref: '#/components/schemas/User' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Google token is required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to authenticate with Google',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/facebook': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Facebook OAuth sign-in',
+        description: 'Authenticate or register a user using Facebook OAuth. If a user with the same email exists, the Facebook account will be linked. If not, a new user will be created.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['accessToken'],
+                properties: {
+                  accessToken: {
+                    type: 'string',
+                    description: 'Facebook access token obtained from Facebook Login',
+                    example: 'EAABwzLixnjYBO...',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Login successful - existing user',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Login successful' },
+                    user: { $ref: '#/components/schemas/User' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
+                  },
+                },
+              },
+            },
+          },
+          '201': {
+            description: 'User created successfully - new user',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'User created successfully' },
+                    user: { $ref: '#/components/schemas/User' },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Facebook access token is required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to authenticate with Facebook',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/users/profile': {
       get: {
         tags: ['Users'],

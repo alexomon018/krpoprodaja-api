@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { register, login, verifyToken, refreshTokens, revokeTokens } from '../controllers/authController.ts'
+import { googleAuth, facebookAuth } from '../controllers/oauthController.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { authenticateToken } from '../middleware/auth.ts'
 import { z } from 'zod'
@@ -28,11 +29,23 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 })
 
+const googleAuthSchema = z.object({
+  token: z.string().min(1, 'Google ID token is required'),
+})
+
+const facebookAuthSchema = z.object({
+  accessToken: z.string().min(1, 'Facebook access token is required'),
+})
+
 // Routes
 router.post('/register', validateBody(insertUserSchema), register)
 router.post('/login', validateBody(loginSchema), login)
 router.post('/refresh', validateBody(refreshTokenSchema), refreshTokens)
 router.post('/revoke', authenticateToken, revokeTokens)
 router.get('/verify', authenticateToken, verifyToken)
+
+// OAuth routes
+router.post('/google', validateBody(googleAuthSchema), googleAuth)
+router.post('/facebook', validateBody(facebookAuthSchema), facebookAuth)
 
 export default router

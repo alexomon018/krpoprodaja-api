@@ -20,7 +20,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   username: varchar("username", { length: 50 }).notNull().unique(),
-  password: varchar("password", { length: 255 }).notNull(),
+  password: varchar("password", { length: 255 }), // Optional for OAuth users
   firstName: varchar("first_name", { length: 50 }),
   lastName: varchar("last_name", { length: 50 }),
   name: varchar("name", { length: 100 }), // Display name
@@ -31,6 +31,11 @@ export const users = pgTable("users", {
   verified: boolean("verified").default(false).notNull(), // Email verification
   verifiedSeller: boolean("verified_seller").default(false).notNull(), // Trusted seller badge
   responseTime: varchar("response_time", { length: 100 }), // e.g., "Usually responds within hours"
+  // OAuth provider fields
+  googleId: varchar("google_id", { length: 255 }), // Google OAuth ID
+  facebookId: varchar("facebook_id", { length: 255 }), // Facebook OAuth ID
+  authProvider: varchar("auth_provider", { length: 20 }).default("email"), // email|google|facebook - primary auth method
+  linkedProviders: json("linked_providers").$type<string[]>().default([]), // Array of linked providers ['email', 'google']
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -352,7 +357,7 @@ export const insertUserSchema = createInsertSchema(users, {
     message: "Invalid email address",
   }),
   username: z.string().min(3).max(50),
-  password: z.string().min(8),
+  password: z.string().min(8).optional(), // Optional for OAuth users
   name: z.string().min(2).max(100).optional(),
   phone: z
     .string()
@@ -362,6 +367,8 @@ export const insertUserSchema = createInsertSchema(users, {
     .optional(), // E.164 format
   bio: z.string().max(500).optional(),
   location: z.string().max(100).optional(),
+  authProvider: z.enum(["email", "google", "facebook"]).optional(),
+  linkedProviders: z.array(z.string()).optional(),
 });
 export const selectUserSchema = createSelectSchema(users);
 

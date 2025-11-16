@@ -41,6 +41,13 @@ const envSchema = z.object({
   // Security
   BCRYPT_ROUNDS: z.coerce.number().min(10).max(20).default(12),
 
+  // OAuth - Google
+  GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // OAuth - Facebook
+  FACEBOOK_APP_ID: z.string().optional(),
+  FACEBOOK_APP_SECRET: z.string().optional(),
+
   // CORS
   CORS_ORIGIN: z
     .string()
