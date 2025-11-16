@@ -24,7 +24,9 @@ export const googleAuth = async (req: Request, res: Response) => {
     const [existingUser] = await db
       .select()
       .from(users)
-      .where(or(eq(users.email, profile.email), eq(users.googleId, profile.id)));
+      .where(
+        or(eq(users.email, profile.email), eq(users.googleId, profile.id))
+      );
 
     if (existingUser) {
       // User exists - link Google account if not already linked
@@ -34,7 +36,8 @@ export const googleAuth = async (req: Request, res: Response) => {
 
       const needsUpdate =
         existingUser.googleId !== profile.id ||
-        !linkedProviders.includes("google");
+        !linkedProviders.includes("google") ||
+        existingUser.avatar !== profile.avatar; // Also update if avatar changed
 
       if (needsUpdate) {
         // Update user to link Google account
@@ -47,8 +50,8 @@ export const googleAuth = async (req: Request, res: Response) => {
           .set({
             googleId: profile.id,
             linkedProviders: updatedLinkedProviders,
-            // Update avatar and name if not set
-            avatar: existingUser.avatar || profile.avatar,
+            // Always update avatar from Google (Google photos are usually up to date)
+            avatar: profile.avatar || existingUser.avatar,
             name: existingUser.name || profile.name,
             firstName: existingUser.firstName || profile.firstName,
             lastName: existingUser.lastName || profile.lastName,
@@ -134,7 +137,9 @@ export const googleAuth = async (req: Request, res: Response) => {
     console.error("Google OAuth error:", error);
     res.status(500).json({
       error:
-        error instanceof Error ? error.message : "Failed to authenticate with Google",
+        error instanceof Error
+          ? error.message
+          : "Failed to authenticate with Google",
     });
   }
 };
@@ -148,7 +153,9 @@ export const facebookAuth = async (req: Request, res: Response) => {
     const { accessToken } = req.body;
 
     if (!accessToken) {
-      return res.status(400).json({ error: "Facebook access token is required" });
+      return res
+        .status(400)
+        .json({ error: "Facebook access token is required" });
     }
 
     // Verify Facebook token and get user profile
@@ -170,7 +177,8 @@ export const facebookAuth = async (req: Request, res: Response) => {
 
       const needsUpdate =
         existingUser.facebookId !== profile.id ||
-        !linkedProviders.includes("facebook");
+        !linkedProviders.includes("facebook") ||
+        existingUser.avatar !== profile.avatar; // Also update if avatar changed
 
       if (needsUpdate) {
         // Update user to link Facebook account
@@ -183,8 +191,8 @@ export const facebookAuth = async (req: Request, res: Response) => {
           .set({
             facebookId: profile.id,
             linkedProviders: updatedLinkedProviders,
-            // Update avatar and name if not set
-            avatar: existingUser.avatar || profile.avatar,
+            // Always update avatar from Facebook (Facebook photos are usually up to date)
+            avatar: profile.avatar || existingUser.avatar,
             name: existingUser.name || profile.name,
             firstName: existingUser.firstName || profile.firstName,
             lastName: existingUser.lastName || profile.lastName,

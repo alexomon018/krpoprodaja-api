@@ -21,9 +21,7 @@ export interface OAuthProfile {
  * @param token - Google ID token from client
  * @returns User profile from Google
  */
-export async function verifyGoogleToken(
-  token: string
-): Promise<OAuthProfile> {
+export async function verifyGoogleToken(token: string): Promise<OAuthProfile> {
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken: token,
@@ -51,7 +49,9 @@ export async function verifyGoogleToken(
     };
   } catch (error) {
     throw new Error(
-      `Google token verification failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Google token verification failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
@@ -113,11 +113,15 @@ export async function verifyFacebookToken(
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw new Error(
-        `Facebook token verification failed: ${error.response?.data?.error?.message || error.message}`
+        `Facebook token verification failed: ${
+          error.response?.data?.error?.message || error.message
+        }`
       );
     }
     throw new Error(
-      `Facebook token verification failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Facebook token verification failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
