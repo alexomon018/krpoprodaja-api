@@ -36,6 +36,9 @@ export const users = pgTable("users", {
   facebookId: varchar("facebook_id", { length: 255 }), // Facebook OAuth ID
   authProvider: varchar("auth_provider", { length: 20 }).default("email"), // email|google|facebook - primary auth method
   linkedProviders: json("linked_providers").$type<string[]>().default([]), // Array of linked providers ['email', 'google']
+  // Password reset fields
+  passwordResetToken: varchar("password_reset_token", { length: 255 }),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
