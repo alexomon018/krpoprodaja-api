@@ -48,6 +48,12 @@ const envSchema = z.object({
   FACEBOOK_APP_ID: z.string().optional(),
   FACEBOOK_APP_SECRET: z.string().optional(),
 
+  // Email - Resend
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().email().default('noreply@example.com'),
+  FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  PASSWORD_RESET_TOKEN_EXPIRES_IN: z.string().default('1h'),
+
   // CORS
   CORS_ORIGIN: z
     .string()

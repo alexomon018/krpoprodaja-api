@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { register, login, verifyToken, refreshTokens, revokeTokens } from '../controllers/authController.ts'
+import { register, login, verifyToken, refreshTokens, revokeTokens, requestPasswordReset, resetPassword } from '../controllers/authController.ts'
 import { googleAuth, facebookAuth } from '../controllers/oauthController.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { authenticateToken } from '../middleware/auth.ts'
@@ -37,6 +37,15 @@ const facebookAuthSchema = z.object({
   accessToken: z.string().min(1, 'Facebook access token is required'),
 })
 
+const requestPasswordResetSchema = z.object({
+  email: z.string().email('Invalid email format'),
+})
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
 // Routes
 router.post('/register', validateBody(insertUserSchema), register)
 router.post('/login', validateBody(loginSchema), login)
@@ -47,5 +56,9 @@ router.get('/verify', authenticateToken, verifyToken)
 // OAuth routes
 router.post('/google', validateBody(googleAuthSchema), googleAuth)
 router.post('/facebook', validateBody(facebookAuthSchema), facebookAuth)
+
+// Password reset routes
+router.post('/request-password-reset', validateBody(requestPasswordResetSchema), requestPasswordReset)
+router.post('/reset-password', validateBody(resetPasswordSchema), resetPassword)
 
 export default router
