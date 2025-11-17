@@ -1,5 +1,4 @@
 import { OAuth2Client } from "google-auth-library";
-import axios from "axios";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -66,17 +65,26 @@ export async function verifyFacebookToken(
 ): Promise<OAuthProfile> {
   try {
     // First, verify the token is valid
-    const debugResponse = await axios.get(
-      `https://graph.facebook.com/debug_token`,
-      {
-        params: {
-          input_token: accessToken,
-          access_token: `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`,
-        },
-      }
+    const debugUrl = new URL("https://graph.facebook.com/debug_token");
+    debugUrl.searchParams.append("input_token", accessToken);
+    debugUrl.searchParams.append(
+      "access_token",
+      `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`
     );
 
-    const debugData = debugResponse.data.data;
+    const debugResponse = await fetch(debugUrl.toString());
+
+    if (!debugResponse.ok) {
+      const errorData = await debugResponse.json();
+      throw new Error(
+        `Facebook token verification failed: ${
+          errorData?.error?.message || debugResponse.statusText
+        }`
+      );
+    }
+
+    const debugJson = await debugResponse.json();
+    const debugData = debugJson.data;
 
     if (!debugData.is_valid) {
       throw new Error("Invalid Facebook token");
@@ -88,14 +96,25 @@ export async function verifyFacebookToken(
     }
 
     // Get user profile data
-    const profileResponse = await axios.get(`https://graph.facebook.com/me`, {
-      params: {
-        fields: "id,email,first_name,last_name,name,picture",
-        access_token: accessToken,
-      },
-    });
+    const profileUrl = new URL("https://graph.facebook.com/me");
+    profileUrl.searchParams.append(
+      "fields",
+      "id,email,first_name,last_name,name,picture"
+    );
+    profileUrl.searchParams.append("access_token", accessToken);
 
-    const profile = profileResponse.data;
+    const profileResponse = await fetch(profileUrl.toString());
+
+    if (!profileResponse.ok) {
+      const errorData = await profileResponse.json();
+      throw new Error(
+        `Failed to fetch Facebook profile: ${
+          errorData?.error?.message || profileResponse.statusText
+        }`
+      );
+    }
+
+    const profile = await profileResponse.json();
 
     if (!profile.email) {
       throw new Error("Email not found in Facebook profile");
@@ -111,13 +130,6 @@ export async function verifyFacebookToken(
       verified: true, // Facebook emails are verified
     };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw new Error(
-        `Facebook token verification failed: ${
-          error.response?.data?.error?.message || error.message
-        }`
-      );
-    }
     throw new Error(
       `Facebook token verification failed: ${
         error instanceof Error ? error.message : "Unknown error"
