@@ -459,6 +459,116 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/auth/request-password-reset': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Request password reset',
+        description: 'Request a password reset email. An email with a reset link will be sent if the account exists. Always returns success to prevent email enumeration. OAuth-only users (without passwords) will not receive emails.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email'],
+                properties: {
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    description: 'Email address of the account',
+                    example: 'user@example.com',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Request processed successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                      example: 'If an account with that email exists, a password reset link has been sent.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Email is required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to send password reset email',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/reset-password': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Reset password with token',
+        description: 'Reset user password using the token received via email. The token is valid for 1 hour (configurable). After successful reset, all existing tokens are revoked and the user must login again.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['token', 'newPassword'],
+                properties: {
+                  token: {
+                    type: 'string',
+                    description: 'Reset token from email link',
+                    example: 'a1b2c3d4e5f6...',
+                  },
+                  newPassword: {
+                    type: 'string',
+                    format: 'password',
+                    minLength: 8,
+                    description: 'New password (minimum 8 characters)',
+                    example: 'NewSecurePass123!',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Password reset successful',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                      example: 'Password has been reset successfully. Please login with your new password.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid request - token/password missing, password too short, or token invalid/expired',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to reset password',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/users/profile': {
       get: {
         tags: ['Users'],
