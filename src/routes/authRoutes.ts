@@ -3,6 +3,12 @@ import { register, login, verifyToken, refreshTokens, revokeTokens, requestPassw
 import { googleAuth, facebookAuth } from '../controllers/oauthController.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { authenticateToken } from '../middleware/auth.ts'
+import {
+  authLimiter,
+  refreshLimiter,
+  resetPasswordRequestLimiter,
+  resetPasswordCompleteLimiter
+} from '../middleware/rateLimiting.ts'
 import { z } from 'zod'
 import { insertUserSchema } from '../db/schema.ts'
 
@@ -26,7 +32,7 @@ const loginSchema = z.object({
 })
 
 const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  refreshToken: z.string().optional(), // Optional since we now use httpOnly cookies
 })
 
 const googleAuthSchema = z.object({
@@ -47,18 +53,18 @@ const resetPasswordSchema = z.object({
 })
 
 // Routes
-router.post('/register', validateBody(insertUserSchema), register)
-router.post('/login', validateBody(loginSchema), login)
-router.post('/refresh', validateBody(refreshTokenSchema), refreshTokens)
+router.post('/register', authLimiter, validateBody(insertUserSchema), register)
+router.post('/login', authLimiter, validateBody(loginSchema), login)
+router.post('/refresh', refreshLimiter, validateBody(refreshTokenSchema), refreshTokens)
 router.post('/revoke', authenticateToken, revokeTokens)
 router.get('/verify', authenticateToken, verifyToken)
 
 // OAuth routes
-router.post('/google', validateBody(googleAuthSchema), googleAuth)
-router.post('/facebook', validateBody(facebookAuthSchema), facebookAuth)
+router.post('/google', authLimiter, validateBody(googleAuthSchema), googleAuth)
+router.post('/facebook', authLimiter, validateBody(facebookAuthSchema), facebookAuth)
 
 // Password reset routes
-router.post('/request-password-reset', validateBody(requestPasswordResetSchema), requestPasswordReset)
-router.post('/reset-password', validateBody(resetPasswordSchema), resetPassword)
+router.post('/request-password-reset', resetPasswordRequestLimiter, validateBody(requestPasswordResetSchema), requestPasswordReset)
+router.post('/reset-password', resetPasswordCompleteLimiter, validateBody(resetPasswordSchema), resetPassword)
 
 export default router

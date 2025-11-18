@@ -2,6 +2,7 @@ import { env, isDev, isTestEnv } from '../env.ts'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import cookieParser from 'cookie-parser'
 import authRoutes from './routes/authRoutes.ts'
 import userRoutes from './routes/userRoutes.ts'
 import productRoutes from './routes/productRoutes.ts'
@@ -10,6 +11,7 @@ import categoryRoutes from './routes/categoryRoutes.ts'
 import searchRoutes from './routes/searchRoutes.ts'
 import morgan from 'morgan'
 import { setupSwagger } from './swagger.ts'
+import { csrfTokenMiddleware } from './middleware/csrf.ts'
 
 const app = express()
 
@@ -27,6 +29,8 @@ app.use(
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(cookieParser()) // Parse cookies for refresh tokens and CSRF
+app.use(csrfTokenMiddleware) // Attach CSRF token to requests
 app.use(
   morgan('dev', {
     skip: () => isTestEnv(),
@@ -42,6 +46,13 @@ app.get('/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     service: 'KrpoProdaja API',
+  })
+})
+
+// CSRF token endpoint
+app.get('/api/csrf-token', (req, res) => {
+  res.json({
+    csrfToken: req.csrfToken ? req.csrfToken() : null,
   })
 })
 

@@ -5,7 +5,7 @@ import { generateAuthTokens, verifyRefreshToken } from '../utils/jwt.ts'
 import { jwtRevocationManager } from '../utils/jwtRevocation.ts'
 import { db } from '../db/connection.ts'
 import { users } from '../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { AuthenticatedRequest } from '../middleware/auth.ts'
 import { sendPasswordResetEmail } from '../utils/email.ts'
 import { env } from '../../env.ts'
@@ -48,10 +48,20 @@ export const register = async (req: Request, res: Response) => {
       lastName: newUser.lastName,
     })
 
+    // Set refresh token as httpOnly cookie for security
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+
+    // Return access token and ID token (not refresh token)
     res.status(201).json({
       message: 'User created successfully',
       user: newUser,
-      ...tokens,
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
     })
   } catch (error) {
     console.error('Registration error:', error)
@@ -70,6 +80,16 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
+    // Check if account is locked
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const remainingMinutes = Math.ceil(
+        (user.lockedUntil.getTime() - Date.now()) / (1000 * 60)
+      )
+      return res.status(423).json({
+        error: `Account temporarily locked. Please try again in ${remainingMinutes} minute(s).`,
+      })
+    }
+
     // Check if user has a password (not OAuth-only user)
     if (!user.password) {
       return res.status(401).json({
@@ -81,8 +101,39 @@ export const login = async (req: Request, res: Response) => {
     const isValidPassword = await bcrypt.compare(password, user.password)
 
     if (!isValidPassword) {
+      // Increment failed login attempts
+      const newFailedAttempts = (user.failedLoginAttempts || 0) + 1
+      const shouldLock = newFailedAttempts >= 5
+
+      await db
+        .update(users)
+        .set({
+          failedLoginAttempts: newFailedAttempts,
+          lockedUntil: shouldLock
+            ? new Date(Date.now() + 15 * 60 * 1000) // Lock for 15 minutes
+            : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id))
+
+      if (shouldLock) {
+        return res.status(423).json({
+          error: 'Account locked due to multiple failed login attempts. Please try again in 15 minutes.',
+        })
+      }
+
       return res.status(401).json({ error: 'Invalid credentials' })
     }
+
+    // Reset failed login attempts on successful login
+    await db
+      .update(users)
+      .set({
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id))
 
     // Generate authentication tokens (access, ID, and refresh)
     const tokens = await generateAuthTokens({
@@ -93,6 +144,15 @@ export const login = async (req: Request, res: Response) => {
       lastName: user.lastName,
     })
 
+    // Set refresh token as httpOnly cookie for security
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+
+    // Return access token and ID token (not refresh token)
     res.json({
       message: 'Login successful',
       user: {
@@ -102,7 +162,8 @@ export const login = async (req: Request, res: Response) => {
         firstName: user.firstName,
         lastName: user.lastName,
       },
-      ...tokens,
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -128,7 +189,8 @@ export const verifyToken = async (req: Request, res: Response) => {
 
 export const refreshTokens = async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body
+    // Try to get refresh token from httpOnly cookie first, fallback to body for backward compatibility
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken
 
     if (!refreshToken) {
       return res.status(401).json({ error: 'Refresh token required' })
@@ -137,11 +199,6 @@ export const refreshTokens = async (req: Request, res: Response) => {
     // Verify the refresh token
     const payload = await verifyRefreshToken(refreshToken)
 
-    // Check if user's tokens have been revoked
-    const decoded = await verifyRefreshToken(refreshToken)
-    // Note: Refresh tokens also need to check revocation
-    // We'll use a very long duration for refresh token revocations
-
     // Get user from database
     const [user] = await db.select().from(users).where(eq(users.id, payload.id))
 
@@ -149,7 +206,7 @@ export const refreshTokens = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    // Generate new access and ID tokens (keep the same refresh token)
+    // Generate new tokens (including a new refresh token)
     const tokens = await generateAuthTokens({
       id: user.id,
       email: user.email,
@@ -158,9 +215,19 @@ export const refreshTokens = async (req: Request, res: Response) => {
       lastName: user.lastName,
     })
 
+    // Set new refresh token as httpOnly cookie
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+
+    // Return new access and ID tokens (not refresh token)
     res.json({
       message: 'Tokens refreshed successfully',
-      ...tokens,
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
     })
   } catch (error) {
     console.error('Token refresh error:', error)
@@ -180,6 +247,13 @@ export const revokeTokens = async (req: AuthenticatedRequest, res: Response) => 
     // Duration should be at least as long as the longest token lifetime (30 days for refresh tokens)
     const revocationDuration = 30 * 24 * 60 * 60 // 30 days in seconds
     jwtRevocationManager.revoke(user.id, revocationDuration)
+
+    // Clear the refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    })
 
     res.json({
       message: 'All tokens have been revoked successfully. Please login again.',
@@ -250,12 +324,13 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     const expiryMs = parseTokenExpiry(env.PASSWORD_RESET_TOKEN_EXPIRES_IN)
     const expiresAt = new Date(Date.now() + expiryMs)
 
-    // Update user with reset token and expiry
+    // Update user with reset token and expiry, reset the used flag
     await db
       .update(users)
       .set({
         passwordResetToken: hashedToken,
         passwordResetExpiresAt: expiresAt,
+        passwordResetUsed: false,
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id))
@@ -318,17 +393,23 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid or expired reset token' })
     }
 
+    // Check if token has already been used
+    if (user.passwordResetUsed) {
+      return res.status(400).json({ error: 'This reset token has already been used' })
+    }
+
     // Hash the new password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12')
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds)
 
-    // Update user's password and clear reset token
+    // Update user's password, mark token as used, and clear reset token
     await db
       .update(users)
       .set({
         password: hashedPassword,
         passwordResetToken: null,
         passwordResetExpiresAt: null,
+        passwordResetUsed: true,
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id))
