@@ -3,8 +3,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     globals: true,
-    // Only use global setup for integration tests, not unit tests
-    globalSetup: ['./tests/setup/globalSetup.ts'],
+    // Unit tests don't need database setup
     setupFiles: ['./tests/setup/unitTestSetup.ts'],
     // Set environment before tests run
     env: {
@@ -14,11 +13,11 @@ export default defineConfig({
     // Automatically clean up after each test to ensure isolation
     clearMocks: true,
     restoreMocks: true,
-    // Ensure tests run sequentially to avoid database conflicts
+    // Unit tests can run in parallel since they don't touch the database
     pool: 'threads',
     poolOptions: {
       threads: {
-        singleThread: true
+        singleThread: false
       }
     }
   },
