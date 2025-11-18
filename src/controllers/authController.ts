@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import crypto from 'crypto'
-import { generateAuthTokens, verifyRefreshToken } from '../utils/jwt.ts'
+import { generateAuthTokens, verifyRefreshToken, parseTokenExpiryToMs } from '../utils/jwt.ts'
 import { jwtRevocationManager } from '../utils/jwtRevocation.ts'
 import { db } from '../db/connection.ts'
 import { users } from '../db/schema.ts'
@@ -53,7 +53,7 @@ export const register = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: env.NODE_ENV === 'production', // HTTPS only in production
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     })
 
     // Return access token and ID token (not refresh token)
@@ -103,14 +103,14 @@ export const login = async (req: Request, res: Response) => {
     if (!isValidPassword) {
       // Increment failed login attempts
       const newFailedAttempts = (user.failedLoginAttempts || 0) + 1
-      const shouldLock = newFailedAttempts >= 5
+      const shouldLock = newFailedAttempts >= env.FAILED_LOGIN_ATTEMPTS_LIMIT
 
       await db
         .update(users)
         .set({
           failedLoginAttempts: newFailedAttempts,
           lockedUntil: shouldLock
-            ? new Date(Date.now() + 15 * 60 * 1000) // Lock for 15 minutes
+            ? new Date(Date.now() + parseTokenExpiryToMs(env.ACCOUNT_LOCKOUT_DURATION))
             : null,
           updatedAt: new Date(),
         })
@@ -118,7 +118,7 @@ export const login = async (req: Request, res: Response) => {
 
       if (shouldLock) {
         return res.status(423).json({
-          error: 'Account locked due to multiple failed login attempts. Please try again in 15 minutes.',
+          error: `Account locked due to multiple failed login attempts. Please try again later.`,
         })
       }
 
@@ -149,7 +149,7 @@ export const login = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: env.NODE_ENV === 'production', // HTTPS only in production
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     })
 
     // Return access token and ID token (not refresh token)

@@ -3,6 +3,28 @@ import { createSecretKey } from 'crypto'
 import env from '../../env.ts'
 
 /**
+ * Parse token expiry string (e.g., "30m", "1h", "7d") to milliseconds
+ */
+export function parseTokenExpiryToMs(expiryString: string): number {
+  const match = expiryString.match(/^(\d+)([smhd])$/)
+  if (!match) {
+    throw new Error(`Invalid token expiry format: ${expiryString}`)
+  }
+
+  const value = parseInt(match[1])
+  const unit = match[2]
+
+  const multipliers = {
+    s: 1000,                    // seconds
+    m: 60 * 1000,               // minutes
+    h: 60 * 60 * 1000,          // hours
+    d: 24 * 60 * 60 * 1000,     // days
+  }
+
+  return value * multipliers[unit as keyof typeof multipliers]
+}
+
+/**
  * Token Types:
  * - access: Used for API authorization (short-lived, minimal claims)
  * - id: Contains user identity information (short-lived, full user data)
@@ -77,7 +99,7 @@ export const generateAccessToken = async (userId: string): Promise<string> => {
   return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
-    .setExpirationTime('30m') // 30 minutes
+    .setExpirationTime(env.ACCESS_TOKEN_EXPIRES_IN)
     .setAudience('api')
     .setIssuer('krpoprodaja-api')
     .sign(secretKey)
@@ -101,7 +123,7 @@ export const generateIdToken = async (user: TokenUserData): Promise<string> => {
   return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
-    .setExpirationTime('30m') // 30 minutes
+    .setExpirationTime(env.ID_TOKEN_EXPIRES_IN)
     .setAudience('client')
     .setIssuer('krpoprodaja-api')
     .sign(secretKey)

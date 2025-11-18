@@ -34,12 +34,16 @@ const envSchema = z.object({
 
   // JWT & Auth
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  ACCESS_TOKEN_EXPIRES_IN: z.string().default('30m'), // Short-lived access tokens
+  ID_TOKEN_EXPIRES_IN: z.string().default('30m'), // Short-lived ID tokens
   REFRESH_TOKEN_SECRET: z.string().min(32).optional(),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'),
+  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'), // Long-lived refresh tokens
 
-  // Security
+  // Security - Account Protection
   BCRYPT_ROUNDS: z.coerce.number().min(10).max(20).default(12),
+  FAILED_LOGIN_ATTEMPTS_LIMIT: z.coerce.number().min(3).max(10).default(5), // Max failed attempts before lockout
+  ACCOUNT_LOCKOUT_DURATION: z.string().default('15m'), // Account lockout duration
+  OAUTH_TOKEN_TRACKING_DURATION: z.string().default('10m'), // How long to track used OAuth tokens
 
   // OAuth - Google
   GOOGLE_CLIENT_ID: z.string().optional(),

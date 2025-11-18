@@ -6,6 +6,9 @@
  * For multi-server deployments, consider using Redis or a database.
  */
 
+import { env } from '../../env.ts'
+import { parseTokenExpiryToMs } from './jwt.ts'
+
 interface UsedToken {
   token: string
   usedAt: number
@@ -14,7 +17,7 @@ interface UsedToken {
 class OAuthTokenTracker {
   private usedTokens: Map<string, UsedToken>
   private cleanupInterval: NodeJS.Timeout | null = null
-  private readonly TOKEN_LIFETIME_MS = 10 * 60 * 1000 // 10 minutes
+  private readonly TOKEN_LIFETIME_MS = parseTokenExpiryToMs(env.OAUTH_TOKEN_TRACKING_DURATION)
 
   constructor() {
     this.usedTokens = new Map()
@@ -57,7 +60,7 @@ class OAuthTokenTracker {
   }
 
   /**
-   * Clean up expired tokens (older than 10 minutes)
+   * Clean up expired tokens (older than OAUTH_TOKEN_TRACKING_DURATION)
    */
   private cleanup(): void {
     const now = Date.now()

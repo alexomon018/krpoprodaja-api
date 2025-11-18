@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { generateAuthTokens } from "../utils/jwt.ts";
+import { generateAuthTokens, parseTokenExpiryToMs } from "../utils/jwt.ts";
 import { verifyGoogleToken, verifyFacebookToken } from "../utils/oauth.ts";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
@@ -87,7 +87,7 @@ export const googleAuth = async (req: Request, res: Response) => {
         httpOnly: true,
         secure: env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
       });
 
       return res.json({
@@ -254,7 +254,7 @@ export const facebookAuth = async (req: Request, res: Response) => {
         httpOnly: true,
         secure: env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
       });
 
       return res.json({

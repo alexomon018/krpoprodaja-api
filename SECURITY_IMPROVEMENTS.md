@@ -304,30 +304,59 @@ curl -X POST http://localhost:3000/api/auth/google \
 
 ## Configuration
 
-All security features work out of the box with no additional configuration required. However, you can customize:
+All security features are configurable via environment variables. No code changes required!
 
-### Rate Limits
-Edit `src/middleware/rateLimiting.ts` to adjust:
-- Window duration
-- Max requests per window
-- Custom error messages
+### Environment Variables
 
-### Account Lockout
-Edit `src/controllers/authController.ts` line 106:
-```typescript
-const shouldLock = newFailedAttempts >= 5 // Change threshold
-```
+All security settings can be configured in your `.env` file:
 
-Edit line 113:
-```typescript
-new Date(Date.now() + 15 * 60 * 1000) // Change lock duration
-```
-
-### Token Lifetimes
-Edit `env.ts` or `.env` file:
 ```env
-REFRESH_TOKEN_EXPIRES_IN=30d  # Refresh token lifetime
-PASSWORD_RESET_TOKEN_EXPIRES_IN=1h  # Reset token lifetime
+# ===== Token Expiration Settings =====
+# Format: Xs (seconds), Xm (minutes), Xh (hours), Xd (days)
+
+ACCESS_TOKEN_EXPIRES_IN=30m        # Short-lived access tokens (default: 30m)
+ID_TOKEN_EXPIRES_IN=30m            # Short-lived ID tokens (default: 30m)
+REFRESH_TOKEN_EXPIRES_IN=30d       # Long-lived refresh tokens (default: 30d)
+PASSWORD_RESET_TOKEN_EXPIRES_IN=1h # Password reset link lifetime (default: 1h)
+
+# ===== Account Security Settings =====
+
+FAILED_LOGIN_ATTEMPTS_LIMIT=5      # Failed attempts before lockout (3-10, default: 5)
+ACCOUNT_LOCKOUT_DURATION=15m       # Account lockout duration (default: 15m)
+OAUTH_TOKEN_TRACKING_DURATION=10m  # OAuth token replay protection (default: 10m)
+
+# ===== Password Security =====
+
+BCRYPT_ROUNDS=12                   # Password hashing strength (10-20, default: 12)
+```
+
+**Examples:**
+
+```env
+# Development - Longer tokens for easier testing
+ACCESS_TOKEN_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_IN=90d
+ACCOUNT_LOCKOUT_DURATION=5m
+FAILED_LOGIN_ATTEMPTS_LIMIT=10
+
+# Production - Stricter security
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
+ACCOUNT_LOCKOUT_DURATION=30m
+FAILED_LOGIN_ATTEMPTS_LIMIT=3
+BCRYPT_ROUNDS=14
+```
+
+### Rate Limits (Code Configuration)
+
+If you need to customize rate limiting beyond environment variables, edit `src/middleware/rateLimiting.ts`:
+
+```typescript
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // Change window duration
+  max: 5,                     // Change max requests
+  message: { error: 'Custom error message' }
+})
 ```
 
 ---
@@ -391,11 +420,15 @@ Consider these for production deployments:
 - `SECURITY_IMPROVEMENTS.md` - This document
 
 ### Modified Files
+- `env.ts` - Added new environment variables for token expiration and security settings
 - `src/db/schema.ts` - Added security fields
-- `src/controllers/authController.ts` - HttpOnly cookies, account lockout, password reset
-- `src/controllers/oauthController.ts` - HttpOnly cookies, token replay protection
+- `src/controllers/authController.ts` - HttpOnly cookies, account lockout, password reset, env-based configuration
+- `src/controllers/oauthController.ts` - HttpOnly cookies, token replay protection, env-based configuration
 - `src/routes/authRoutes.ts` - Rate limiters applied
 - `src/server.ts` - Cookie parser and CSRF middleware
+- `src/utils/jwt.ts` - Token expiration from environment variables, added parseTokenExpiryToMs helper
+- `src/utils/oauthTokenTracking.ts` - Configurable token tracking duration
+- `.env.example` - Updated with all new environment variables
 - `package.json` - New dependencies
 
 ---
