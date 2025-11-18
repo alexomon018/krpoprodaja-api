@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     // Unit tests don't need database setup
     setupFiles: ['./tests/setup/unitTestSetup.ts'],
+    // Only run unit tests (exclude integration tests)
+    include: ['tests/unit/**/*.test.ts'],
     // Set environment before tests run
     env: {
       APP_STAGE: 'test',

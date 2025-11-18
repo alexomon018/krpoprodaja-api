@@ -1,5 +1,14 @@
 import { db } from '../../src/db/connection.ts'
-import { users, habits, entries } from '../../src/db/schema.ts'
+import {
+  users,
+  categories,
+  products,
+  reviews,
+  favorites,
+  conversations,
+  conversationParticipants,
+  messages,
+} from '../../src/db/schema.ts'
 import { sql } from 'drizzle-orm'
 import { execSync } from 'child_process'
 
@@ -8,8 +17,14 @@ export default async function setup() {
 
   try {
     // Drop all tables if they exist to ensure clean state
-    await db.execute(sql`DROP TABLE IF EXISTS ${entries} CASCADE`)
-    await db.execute(sql`DROP TABLE IF EXISTS ${habits} CASCADE`)
+    // Order matters: drop child tables first (those with foreign keys), then parent tables
+    await db.execute(sql`DROP TABLE IF EXISTS ${messages} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${conversationParticipants} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${conversations} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${favorites} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${reviews} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${products} CASCADE`)
+    await db.execute(sql`DROP TABLE IF EXISTS ${categories} CASCADE`)
     await db.execute(sql`DROP TABLE IF EXISTS ${users} CASCADE`)
 
     // Use drizzle-kit CLI to push schema to database
@@ -33,8 +48,14 @@ export default async function setup() {
 
     try {
       // Final cleanup - drop all test data
-      await db.execute(sql`DROP TABLE IF EXISTS ${entries} CASCADE`)
-      await db.execute(sql`DROP TABLE IF EXISTS ${habits} CASCADE`)
+      // Order matters: drop child tables first (those with foreign keys), then parent tables
+      await db.execute(sql`DROP TABLE IF EXISTS ${messages} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${conversationParticipants} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${conversations} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${favorites} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${reviews} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${products} CASCADE`)
+      await db.execute(sql`DROP TABLE IF EXISTS ${categories} CASCADE`)
       await db.execute(sql`DROP TABLE IF EXISTS ${users} CASCADE`)
 
       console.log('✅ Test database teardown complete')
