@@ -1,9 +1,11 @@
 import type { Request, Response } from "express";
-import { generateAuthTokens } from "../utils/jwt.ts";
+import { generateAuthTokens, parseTokenExpiryToMs } from "../utils/jwt.ts";
 import { verifyGoogleToken, verifyFacebookToken } from "../utils/oauth.ts";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { eq, or } from "drizzle-orm";
+import { oauthTokenTracker } from "../utils/oauthTokenTracking.ts";
+import { env } from "../../env.ts";
 
 /**
  * Handle Google OAuth sign-in
@@ -17,8 +19,16 @@ export const googleAuth = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Google token is required" });
     }
 
+    // Check if token has already been used (replay attack protection)
+    if (oauthTokenTracker.isTokenUsed(token)) {
+      return res.status(400).json({ error: "Token has already been used" });
+    }
+
     // Verify Google token and get user profile
     const profile = await verifyGoogleToken(token);
+
+    // Mark token as used to prevent replay attacks
+    oauthTokenTracker.markTokenAsUsed(token);
 
     // Check if user already exists with this email or Google ID
     const [existingUser] = await db
@@ -72,6 +82,14 @@ export const googleAuth = async (req: Request, res: Response) => {
         lastName: existingUser.lastName,
       });
 
+      // Set refresh token as httpOnly cookie for security
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+      });
+
       return res.json({
         message: "Login successful",
         user: {
@@ -83,7 +101,8 @@ export const googleAuth = async (req: Request, res: Response) => {
           avatar: existingUser.avatar || profile.avatar,
           name: existingUser.name,
         },
-        ...tokens,
+        accessToken: tokens.accessToken,
+        idToken: tokens.idToken,
       });
     }
 
@@ -128,10 +147,19 @@ export const googleAuth = async (req: Request, res: Response) => {
       lastName: newUser.lastName,
     });
 
+    // Set refresh token as httpOnly cookie for security
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     res.status(201).json({
       message: "User created successfully",
       user: newUser,
-      ...tokens,
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
     });
   } catch (error) {
     console.error("Google OAuth error:", error);
@@ -158,8 +186,16 @@ export const facebookAuth = async (req: Request, res: Response) => {
         .json({ error: "Facebook access token is required" });
     }
 
+    // Check if token has already been used (replay attack protection)
+    if (oauthTokenTracker.isTokenUsed(accessToken)) {
+      return res.status(400).json({ error: "Token has already been used" });
+    }
+
     // Verify Facebook token and get user profile
     const profile = await verifyFacebookToken(accessToken);
+
+    // Mark token as used to prevent replay attacks
+    oauthTokenTracker.markTokenAsUsed(accessToken);
 
     // Check if user already exists with this email or Facebook ID
     const [existingUser] = await db
@@ -213,6 +249,14 @@ export const facebookAuth = async (req: Request, res: Response) => {
         lastName: existingUser.lastName,
       });
 
+      // Set refresh token as httpOnly cookie for security
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+      });
+
       return res.json({
         message: "Login successful",
         user: {
@@ -224,7 +268,8 @@ export const facebookAuth = async (req: Request, res: Response) => {
           avatar: existingUser.avatar || profile.avatar,
           name: existingUser.name,
         },
-        ...tokens,
+        accessToken: tokens.accessToken,
+        idToken: tokens.idToken,
       });
     }
 
@@ -269,10 +314,19 @@ export const facebookAuth = async (req: Request, res: Response) => {
       lastName: newUser.lastName,
     });
 
+    // Set refresh token as httpOnly cookie for security
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     res.status(201).json({
       message: "User created successfully",
       user: newUser,
-      ...tokens,
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
     });
   } catch (error) {
     console.error("Facebook OAuth error:", error);
