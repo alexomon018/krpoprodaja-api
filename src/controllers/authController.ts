@@ -11,7 +11,7 @@ import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { eq, sql } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../middleware/auth.ts";
-import { sendPasswordResetEmail } from "../utils/email.ts";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../utils/email.ts";
 import { env } from "../../env.ts";
 
 export const register = async (req: Request, res: Response) => {
@@ -22,7 +22,18 @@ export const register = async (req: Request, res: Response) => {
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    // Generate a secure verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+
+    // Calculate expiry time
+    const expiryMs = parseTokenExpiry(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
+    const expiresAt = new Date(Date.now() + expiryMs);
+
+    // Create user with verification token
     const [newUser] = await db
       .insert(users)
       .values({
@@ -33,6 +44,9 @@ export const register = async (req: Request, res: Response) => {
         lastName,
         authProvider: "email",
         linkedProviders: ["email"],
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiresAt: expiresAt,
+        verified: false, // User is not verified initially
       })
       .returning({
         id: users.id,
@@ -43,29 +57,24 @@ export const register = async (req: Request, res: Response) => {
         createdAt: users.createdAt,
       });
 
-    // Generate authentication tokens (access, ID, and refresh)
-    const tokens = await generateAuthTokens({
-      id: newUser.id,
-      email: newUser.email,
-      username: newUser.username,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-    });
+    // Send verification email
+    try {
+      await sendVerificationEmail(newUser.email, verificationToken);
+      console.log(`Verification email sent to new user: ${newUser.email}`);
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+      // Don't fail registration if email fails, just log it
+      // User can request a new verification email later
+    }
 
-    // Set refresh token as httpOnly cookie for security
-    res.cookie("refreshToken", tokens.refreshToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production", // HTTPS only in production
-      sameSite: "lax",
-      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
-    });
-
-    // Return access token and ID token (not refresh token)
+    // Return user info without tokens - user needs to verify email first
     res.status(201).json({
-      message: "User created successfully",
-      user: newUser,
-      accessToken: tokens.accessToken,
-      idToken: tokens.idToken,
+      message: "Registration successful. Please check your email to verify your account.",
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
+      },
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -99,6 +108,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({
         error:
           "This account uses social sign-in. Please login with Google or Facebook.",
+      });
+    }
+
+    // Check if email is verified
+    if (!user.verified && user.authProvider === "email") {
+      return res.status(403).json({
+        error: "Please verify your email address before logging in. Check your inbox for the verification link.",
       });
     }
 
@@ -457,5 +473,173 @@ export const resetPassword = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Password reset error:", error);
     res.status(500).json({ error: "Failed to reset password" });
+  }
+};
+
+export const sendEmailVerification = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Find user by email
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      console.log(`Email verification requested for non-existent email: ${email}`);
+      return res.json({
+        message: "If an account with that email exists, a verification email has been sent.",
+      });
+    }
+
+    // Check if user is already verified
+    if (user.verified) {
+      return res.status(400).json({ error: "Email is already verified" });
+    }
+
+    // Check if user uses OAuth (no email verification needed)
+    if (!user.password) {
+      console.log(`Email verification requested for OAuth user: ${email}`);
+      return res.json({
+        message: "If an account with that email exists, a verification email has been sent.",
+      });
+    }
+
+    // Generate a secure random token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    // Hash the token before storing it in the database
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+
+    // Calculate expiry time
+    const expiryMs = parseTokenExpiry(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
+    const expiresAt = new Date(Date.now() + expiryMs);
+
+    // Update user with verification token and expiry
+    await db
+      .update(users)
+      .set({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiresAt: expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(user.email, verificationToken);
+      console.log(`Verification email sent to: ${user.email}`);
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+      // Clear the verification token if email fails
+      await db
+        .update(users)
+        .set({
+          emailVerificationToken: null,
+          emailVerificationExpiresAt: null,
+        })
+        .where(eq(users.id, user.id));
+
+      return res
+        .status(500)
+        .json({ error: "Failed to send verification email" });
+    }
+
+    res.json({
+      message: "Verification email has been sent.",
+    });
+  } catch (error) {
+    console.error("Send verification email error:", error);
+    res.status(500).json({ error: "Failed to send verification email" });
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: "Verification token is required" });
+    }
+
+    // Hash the token to match against stored hash
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with this verification token
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.emailVerificationToken, hashedToken));
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired verification token" });
+    }
+
+    // Check if token has expired
+    if (
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt < new Date()
+    ) {
+      return res.status(400).json({ error: "Invalid or expired verification token" });
+    }
+
+    // Check if user is already verified
+    if (user.verified) {
+      return res.status(400).json({ error: "Email is already verified" });
+    }
+
+    // Mark user as verified and clear verification token
+    await db
+      .update(users)
+      .set({
+        verified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    // Generate authentication tokens to log user in
+    const tokens = await generateAuthTokens({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    });
+
+    // Set refresh token as httpOnly cookie for security
+    res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+    });
+
+    console.log(`Email verified successfully for user: ${user.email}`);
+
+    // Return tokens and user info
+    res.json({
+      message: "Email verified successfully. You are now logged in.",
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        verified: true,
+      },
+      accessToken: tokens.accessToken,
+      idToken: tokens.idToken,
+    });
+  } catch (error) {
+    console.error("Email verification error:", error);
+    res.status(500).json({ error: "Failed to verify email" });
   }
 };

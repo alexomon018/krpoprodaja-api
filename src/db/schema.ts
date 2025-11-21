@@ -40,6 +40,9 @@ export const users = pgTable("users", {
   passwordResetToken: varchar("password_reset_token", { length: 255 }),
   passwordResetExpiresAt: timestamp("password_reset_expires_at"),
   passwordResetUsed: boolean("password_reset_used").default(false),
+  // Email verification fields
+  emailVerificationToken: varchar("email_verification_token", { length: 255 }),
+  emailVerificationExpiresAt: timestamp("email_verification_expires_at"),
   // Account security fields
   failedLoginAttempts: integer("failed_login_attempts").default(0).notNull(),
   lockedUntil: timestamp("locked_until"),
