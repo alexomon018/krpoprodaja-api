@@ -46,7 +46,6 @@ const swaggerDocument = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           email: { type: 'string', format: 'email' },
-          username: { type: 'string' },
           firstName: { type: 'string' },
           lastName: { type: 'string' },
           name: { type: 'string' },
@@ -121,17 +120,16 @@ const swaggerDocument = {
       post: {
         tags: ['Authentication'],
         summary: 'Register a new user',
-        description: 'Create a new user account with email, username, and password. A verification email will be sent. Users must verify their email before logging in.',
+        description: 'Create a new user account with email and password. A verification email will be sent. Users must verify their email before logging in.',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['email', 'username', 'password'],
+                required: ['email', 'password'],
                 properties: {
                   email: { type: 'string', format: 'email', example: 'user@example.com' },
-                  username: { type: 'string', minLength: 3, maxLength: 50, example: 'johndoe' },
                   password: { type: 'string', minLength: 8, format: 'password', example: 'SecurePass123' },
                   firstName: { type: 'string', example: 'John' },
                   lastName: { type: 'string', example: 'Doe' },
@@ -154,7 +152,6 @@ const swaggerDocument = {
                       properties: {
                         id: { type: 'string', format: 'uuid' },
                         email: { type: 'string', format: 'email' },
-                        username: { type: 'string' },
                       },
                     },
                   },
@@ -329,7 +326,6 @@ const swaggerDocument = {
                       properties: {
                         id: { type: 'string', format: 'uuid' },
                         email: { type: 'string', format: 'email' },
-                        username: { type: 'string' },
                       },
                     },
                   },
@@ -688,7 +684,6 @@ const swaggerDocument = {
                       properties: {
                         id: { type: 'string', format: 'uuid' },
                         email: { type: 'string', format: 'email' },
-                        username: { type: 'string' },
                         firstName: { type: 'string' },
                         lastName: { type: 'string' },
                         verified: { type: 'boolean', example: true },
@@ -754,7 +749,6 @@ const swaggerDocument = {
                 type: 'object',
                 properties: {
                   email: { type: 'string', format: 'email' },
-                  username: { type: 'string', minLength: 3, maxLength: 50 },
                   firstName: { type: 'string', maxLength: 50 },
                   lastName: { type: 'string', maxLength: 50 },
                 },

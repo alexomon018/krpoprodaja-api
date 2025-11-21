@@ -40,7 +40,6 @@ export async function getFavorites(req: Request, res: Response) {
         productFavoriteCount: products.favoriteCount,
         productCreatedAt: products.createdAt,
         sellerId: users.id,
-        sellerUsername: users.username,
         sellerAvatar: users.avatar,
         sellerVerifiedSeller: users.verifiedSeller,
       })
@@ -72,7 +71,6 @@ export async function getFavorites(req: Request, res: Response) {
         createdAt: item.productCreatedAt,
         seller: {
           id: item.sellerId,
-          username: item.sellerUsername,
           avatar: item.sellerAvatar,
           verifiedSeller: item.sellerVerifiedSeller,
         },

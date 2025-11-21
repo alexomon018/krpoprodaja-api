@@ -19,7 +19,6 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
-  username: varchar("username", { length: 50 }).notNull().unique(),
   password: varchar("password", { length: 255 }), // Optional for OAuth users
   firstName: varchar("first_name", { length: 50 }),
   lastName: varchar("last_name", { length: 50 }),
@@ -366,7 +365,6 @@ export const insertUserSchema = createInsertSchema(users, {
   email: z.string().refine((val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
     message: "Invalid email address",
   }),
-  username: z.string().min(3).max(50),
   password: z.string().min(8).optional(), // Optional for OAuth users
   name: z.string().min(2).max(100).optional(),
   phone: z

@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit'
+import rateLimit from "express-rate-limit";
 
 /**
  * Rate limiter for authentication endpoints (login, register)
@@ -6,14 +6,14 @@ import rateLimit from 'express-rate-limit'
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window per IP
+  max: 15, // 5 requests per window per IP
   message: {
-    error: 'Too many authentication attempts, please try again later',
+    error: "Too many authentication attempts, please try again later",
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skipSuccessfulRequests: false, // Count successful requests
-})
+});
 
 /**
  * Rate limiter for refresh token endpoint
@@ -23,11 +23,11 @@ export const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 requests per window per IP
   message: {
-    error: 'Too many token refresh attempts, please try again later',
+    error: "Too many token refresh attempts, please try again later",
   },
   standardHeaders: true,
   legacyHeaders: false,
-})
+});
 
 /**
  * Rate limiter for password reset request endpoint
@@ -37,11 +37,11 @@ export const resetPasswordRequestLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 requests per hour per IP
   message: {
-    error: 'Too many password reset attempts, please try again later',
+    error: "Too many password reset attempts, please try again later",
   },
   standardHeaders: true,
   legacyHeaders: false,
-})
+});
 
 /**
  * Rate limiter for password reset completion endpoint
@@ -51,11 +51,11 @@ export const resetPasswordCompleteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 requests per window per IP
   message: {
-    error: 'Too many password reset attempts, please try again later',
+    error: "Too many password reset attempts, please try again later",
   },
   standardHeaders: true,
   legacyHeaders: false,
-})
+});
 
 /**
  * General API rate limiter
@@ -65,8 +65,8 @@ export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per window per IP
   message: {
-    error: 'Too many requests, please try again later',
+    error: "Too many requests, please try again later",
   },
   standardHeaders: true,
   legacyHeaders: false,
-})
+});

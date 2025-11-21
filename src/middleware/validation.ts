@@ -10,7 +10,7 @@ export const validateBody = (schema: z.ZodTypeAny) => {
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Validation failed',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             field: err.path.join('.'),
             message: err.message,
           })),
@@ -30,7 +30,7 @@ export const validateParams = (schema: z.ZodTypeAny) => {
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Invalid parameters',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             field: err.path.join('.'),
             message: err.message,
           })),
@@ -50,7 +50,7 @@ export const validateQuery = (schema: z.ZodTypeAny) => {
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Invalid query parameters',
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             field: err.path.join('.'),
             message: err.message,
           })),

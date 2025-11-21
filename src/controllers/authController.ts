@@ -16,7 +16,7 @@ import { env } from "../../env.ts";
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, username, password, firstName, lastName } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
     // Hash password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
@@ -38,7 +38,6 @@ export const register = async (req: Request, res: Response) => {
       .insert(users)
       .values({
         email,
-        username,
         password: hashedPassword,
         firstName,
         lastName,
@@ -51,7 +50,6 @@ export const register = async (req: Request, res: Response) => {
       .returning({
         id: users.id,
         email: users.email,
-        username: users.username,
         firstName: users.firstName,
         lastName: users.lastName,
         createdAt: users.createdAt,
@@ -73,7 +71,6 @@ export const register = async (req: Request, res: Response) => {
       user: {
         id: newUser.id,
         email: newUser.email,
-        username: newUser.username,
       },
     });
   } catch (error) {
@@ -162,9 +159,9 @@ export const login = async (req: Request, res: Response) => {
     const tokens = await generateAuthTokens({
       id: user.id,
       email: user.email,
-      username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
+      activated: user.verified,
     });
 
     // Set refresh token as httpOnly cookie for security
@@ -181,7 +178,6 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
       },
@@ -236,16 +232,16 @@ export const refreshTokens = async (req: Request, res: Response) => {
     const tokens = await generateAuthTokens({
       id: user.id,
       email: user.email,
-      username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
+      activated: user.verified,
     });
 
     // Set new refresh token as httpOnly cookie
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "strict",
       maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     });
 
@@ -605,20 +601,20 @@ export const verifyEmail = async (req: Request, res: Response) => {
       })
       .where(eq(users.id, user.id));
 
-    // Generate authentication tokens to log user in
+    // Generate authentication tokens to log user in (user is now verified)
     const tokens = await generateAuthTokens({
       id: user.id,
       email: user.email,
-      username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
+      activated: true, // User just verified their email (account activated)
     });
 
     // Set refresh token as httpOnly cookie for security
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "strict",
       maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     });
 
@@ -630,7 +626,6 @@ export const verifyEmail = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
         verified: true,

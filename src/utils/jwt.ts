@@ -34,10 +34,12 @@ export type TokenType = 'access' | 'id' | 'refresh'
 
 /**
  * Minimal payload for access tokens (API authorization)
+ * Includes activated status (email verified) to avoid DB queries on every request
  */
 export interface AccessTokenPayload {
   id: string
   type: 'access'
+  activated: boolean
 }
 
 /**
@@ -46,7 +48,6 @@ export interface AccessTokenPayload {
 export interface IdTokenPayload {
   id: string
   email: string
-  username: string
   firstName?: string | null
   lastName?: string | null
   type: 'id'
@@ -80,20 +81,21 @@ export interface AuthTokens {
 export interface TokenUserData {
   id: string
   email: string
-  username: string
   firstName?: string | null
   lastName?: string | null
+  activated?: boolean
 }
 
 /**
  * Generate access token (short-lived, minimal claims for API authorization)
  */
-export const generateAccessToken = async (userId: string): Promise<string> => {
+export const generateAccessToken = async (userId: string, activated: boolean = true): Promise<string> => {
   const secretKey = createSecretKey(env.JWT_SECRET, 'utf-8')
 
   const payload: AccessTokenPayload = {
     id: userId,
     type: 'access',
+    activated,
   }
 
   return await new SignJWT(payload as unknown as Record<string, unknown>)
@@ -114,7 +116,6 @@ export const generateIdToken = async (user: TokenUserData): Promise<string> => {
   const payload: IdTokenPayload = {
     id: user.id,
     email: user.email,
-    username: user.username,
     firstName: user.firstName,
     lastName: user.lastName,
     type: 'id',
@@ -156,7 +157,7 @@ export const generateRefreshToken = async (userId: string): Promise<string> => {
  */
 export const generateAuthTokens = async (user: TokenUserData): Promise<AuthTokens> => {
   const [accessToken, idToken, refreshToken] = await Promise.all([
-    generateAccessToken(user.id),
+    generateAccessToken(user.id, user.activated ?? true),
     generateIdToken(user),
     generateRefreshToken(user.id),
   ])
@@ -185,6 +186,7 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenPaylo
   return {
     id: payload.id as string,
     type: 'access',
+    activated: payload.activated as boolean ?? true, // Default to true for backwards compatibility
   }
 }
 
@@ -205,7 +207,6 @@ export const verifyIdToken = async (token: string): Promise<IdTokenPayload> => {
   return {
     id: payload.id as string,
     email: payload.email as string,
-    username: payload.username as string,
     firstName: (payload.firstName as string) || null,
     lastName: (payload.lastName as string) || null,
     type: 'id',
@@ -237,7 +238,7 @@ export const verifyRefreshToken = async (token: string): Promise<RefreshTokenPay
  * Legacy function for backward compatibility
  * @deprecated Use generateAuthTokens instead
  */
-export const generateToken = async (payload: { id: string; email: string; username: string }): Promise<string> => {
+export const generateToken = async (payload: { id: string; email: string }): Promise<string> => {
   const secretKey = createSecretKey(env.JWT_SECRET, 'utf-8')
 
   return await new SignJWT(payload)
@@ -251,13 +252,12 @@ export const generateToken = async (payload: { id: string; email: string; userna
  * Legacy function for backward compatibility
  * @deprecated Use verifyAccessToken or verifyIdToken instead
  */
-export const verifyToken = async (token: string): Promise<{ id: string; email: string; username: string }> => {
+export const verifyToken = async (token: string): Promise<{ id: string; email: string }> => {
   const secretKey = createSecretKey(env.JWT_SECRET, 'utf-8')
   const { payload } = await jwtVerify(token, secretKey)
 
   return {
     id: payload.id as string,
     email: payload.email as string,
-    username: payload.username as string,
   }
 }

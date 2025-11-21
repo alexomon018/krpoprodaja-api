@@ -65,7 +65,6 @@ export async function searchProducts(req: Request, res: Response) {
         createdAt: products.createdAt,
         seller: {
           id: users.id,
-          username: users.username,
           avatar: users.avatar,
         },
       })

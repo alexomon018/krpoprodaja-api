@@ -77,7 +77,6 @@ export async function createProduct(req: Request, res: Response) {
         updatedAt: products.updatedAt,
         seller: {
           id: users.id,
-          username: users.username,
           name: users.name,
           avatar: users.avatar,
           verified: users.verified,
@@ -233,7 +232,6 @@ export async function getProducts(req: Request, res: Response) {
         createdAt: products.createdAt,
         seller: {
           id: users.id,
-          username: users.username,
           avatar: users.avatar,
           verified: users.verified,
           verifiedSeller: users.verifiedSeller,
@@ -305,7 +303,6 @@ export async function getProductById(req: Request, res: Response) {
         updatedAt: products.updatedAt,
         seller: {
           id: users.id,
-          username: users.username,
           name: users.name,
           avatar: users.avatar,
           bio: users.bio,
@@ -535,7 +532,6 @@ export async function getSimilarProducts(req: Request, res: Response) {
         createdAt: products.createdAt,
         seller: {
           id: users.id,
-          username: users.username,
           avatar: users.avatar,
         },
       })

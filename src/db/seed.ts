@@ -36,7 +36,6 @@ async function seed() {
       .values([
         {
           email: 'marko@example.com',
-          username: 'marko_petrovic',
           password: hashedPassword,
           firstName: 'Marko',
           lastName: 'Petrović',
@@ -50,7 +49,6 @@ async function seed() {
         },
         {
           email: 'ana@example.com',
-          username: 'ana_jovanovic',
           password: hashedPassword,
           firstName: 'Ana',
           lastName: 'Jovanović',
@@ -64,7 +62,6 @@ async function seed() {
         },
         {
           email: 'nikola@example.com',
-          username: 'nikola_m',
           password: hashedPassword,
           firstName: 'Nikola',
           lastName: 'Milosavljević',
@@ -77,7 +74,6 @@ async function seed() {
         },
         {
           email: 'jelena@example.com',
-          username: 'jelena_s',
           password: hashedPassword,
           firstName: 'Jelena',
           lastName: 'Stanković',
@@ -90,7 +86,6 @@ async function seed() {
         },
         {
           email: 'stefan@example.com',
-          username: 'stefan_k',
           password: hashedPassword,
           firstName: 'Stefan',
           lastName: 'Kovačević',

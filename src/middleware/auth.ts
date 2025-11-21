@@ -76,3 +76,27 @@ export const optionalAuth = async (
     next()
   }
 }
+
+/**
+ * Middleware to ensure the authenticated user has activated their account (verified email)
+ * Must be used AFTER authenticateToken middleware
+ * Checks the 'activated' claim in the JWT token (no DB query needed)
+ */
+export const requireVerifiedEmail = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+
+  // Check activation status from JWT token payload
+  if (!req.user.activated) {
+    return res.status(403).json({
+      error: 'Please verify your email address before accessing this resource. Check your inbox for the verification link.',
+    })
+  }
+
+  next()
+}

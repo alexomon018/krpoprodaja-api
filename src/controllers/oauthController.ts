@@ -3,13 +3,13 @@ import { generateAuthTokens, parseTokenExpiryToMs } from "../utils/jwt.ts";
 import { verifyGoogleToken, verifyFacebookToken } from "../utils/oauth.ts";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { oauthTokenTracker } from "../utils/oauthTokenTracking.ts";
 import { env } from "../../env.ts";
 
 /**
  * Handle Google OAuth sign-in
- * Implements email linking: if user exists with same email, link Google to existing account
+ * Implements secure email linking: only links to verified accounts to prevent account takeover
  */
 export const googleAuth = async (req: Request, res: Response) => {
   try {
@@ -30,56 +30,42 @@ export const googleAuth = async (req: Request, res: Response) => {
     // Mark token as used to prevent replay attacks
     oauthTokenTracker.markTokenAsUsed(token);
 
-    // Check if user already exists with this email or Google ID
-    const [existingUser] = await db
+    // First, check if user already exists with this Google ID
+    const [existingUserByGoogleId] = await db
       .select()
       .from(users)
-      .where(
-        or(eq(users.email, profile.email), eq(users.googleId, profile.id))
-      );
+      .where(eq(users.googleId, profile.id));
 
-    if (existingUser) {
-      // User exists - link Google account if not already linked
-      const linkedProviders = Array.isArray(existingUser.linkedProviders)
-        ? existingUser.linkedProviders
+    if (existingUserByGoogleId) {
+      // User with this Google ID exists - update and log them in
+      const linkedProviders = Array.isArray(existingUserByGoogleId.linkedProviders)
+        ? existingUserByGoogleId.linkedProviders
         : [];
 
-      const needsUpdate =
-        existingUser.googleId !== profile.id ||
-        !linkedProviders.includes("google") ||
-        existingUser.avatar !== profile.avatar; // Also update if avatar changed
+      const updatedLinkedProviders = linkedProviders.includes("google")
+        ? linkedProviders
+        : [...linkedProviders, "google"];
 
-      if (needsUpdate) {
-        // Update user to link Google account
-        const updatedLinkedProviders = linkedProviders.includes("google")
-          ? linkedProviders
-          : [...linkedProviders, "google"];
-
-        await db
-          .update(users)
-          .set({
-            googleId: profile.id,
-            linkedProviders: updatedLinkedProviders,
-            // Always update avatar from Google (Google photos are usually up to date)
-            avatar: profile.avatar || existingUser.avatar,
-            name: existingUser.name || profile.name,
-            firstName: existingUser.firstName || profile.firstName,
-            lastName: existingUser.lastName || profile.lastName,
-            verified:
-              existingUser.verified ||
-              (profile.verified !== undefined ? profile.verified : false),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, existingUser.id));
-      }
+      await db
+        .update(users)
+        .set({
+          linkedProviders: updatedLinkedProviders,
+          avatar: profile.avatar || existingUserByGoogleId.avatar,
+          name: existingUserByGoogleId.name || profile.name,
+          firstName: existingUserByGoogleId.firstName || profile.firstName,
+          lastName: existingUserByGoogleId.lastName || profile.lastName,
+          verified: true, // Google accounts are verified
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUserByGoogleId.id));
 
       // Generate authentication tokens
       const tokens = await generateAuthTokens({
-        id: existingUser.id,
-        email: existingUser.email,
-        username: existingUser.username,
-        firstName: existingUser.firstName,
-        lastName: existingUser.lastName,
+        id: existingUserByGoogleId.id,
+        email: existingUserByGoogleId.email,
+        firstName: existingUserByGoogleId.firstName,
+        lastName: existingUserByGoogleId.lastName,
+        activated: true, // OAuth users are activated
       });
 
       // Set refresh token as httpOnly cookie for security
@@ -93,13 +79,83 @@ export const googleAuth = async (req: Request, res: Response) => {
       return res.json({
         message: "Login successful",
         user: {
-          id: existingUser.id,
-          email: existingUser.email,
-          username: existingUser.username,
-          firstName: existingUser.firstName,
-          lastName: existingUser.lastName,
-          avatar: existingUser.avatar || profile.avatar,
-          name: existingUser.name,
+          id: existingUserByGoogleId.id,
+          email: existingUserByGoogleId.email,
+          firstName: existingUserByGoogleId.firstName,
+          lastName: existingUserByGoogleId.lastName,
+          avatar: profile.avatar || existingUserByGoogleId.avatar,
+          name: existingUserByGoogleId.name,
+        },
+        accessToken: tokens.accessToken,
+        idToken: tokens.idToken,
+      });
+    }
+
+    // Check if user exists with this email (but different OAuth provider or email auth)
+    const [existingUserByEmail] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, profile.email));
+
+    if (existingUserByEmail) {
+      // Security: Only link OAuth if the account is already verified
+      // This prevents account takeover by someone who registered with your email first
+      if (!existingUserByEmail.verified && existingUserByEmail.authProvider === "email") {
+        // Account exists but is not verified - potential account takeover attempt
+        return res.status(403).json({
+          error: "An unverified account with this email already exists. Please verify that account first or contact support.",
+        });
+      }
+
+      // User exists with verified account - safe to link Google account
+      const linkedProviders = Array.isArray(existingUserByEmail.linkedProviders)
+        ? existingUserByEmail.linkedProviders
+        : [];
+
+      const updatedLinkedProviders = linkedProviders.includes("google")
+        ? linkedProviders
+        : [...linkedProviders, "google"];
+
+      await db
+        .update(users)
+        .set({
+          googleId: profile.id,
+          linkedProviders: updatedLinkedProviders,
+          avatar: profile.avatar || existingUserByEmail.avatar,
+          name: existingUserByEmail.name || profile.name,
+          firstName: existingUserByEmail.firstName || profile.firstName,
+          lastName: existingUserByEmail.lastName || profile.lastName,
+          verified: true, // Google accounts are verified
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUserByEmail.id));
+
+      // Generate authentication tokens
+      const tokens = await generateAuthTokens({
+        id: existingUserByEmail.id,
+        email: existingUserByEmail.email,
+        firstName: existingUserByEmail.firstName,
+        lastName: existingUserByEmail.lastName,
+        activated: true, // OAuth users are activated
+      });
+
+      // Set refresh token as httpOnly cookie for security
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+      });
+
+      return res.json({
+        message: "Login successful",
+        user: {
+          id: existingUserByEmail.id,
+          email: existingUserByEmail.email,
+          firstName: existingUserByEmail.firstName,
+          lastName: existingUserByEmail.lastName,
+          avatar: profile.avatar || existingUserByEmail.avatar,
+          name: existingUserByEmail.name,
         },
         accessToken: tokens.accessToken,
         idToken: tokens.idToken,
@@ -107,17 +163,10 @@ export const googleAuth = async (req: Request, res: Response) => {
     }
 
     // User doesn't exist - create new user with Google OAuth
-    // Generate username from email
-    const baseUsername =
-      profile.email.split("@")[0] +
-      "_" +
-      Math.random().toString(36).substring(2, 7);
-
     const [newUser] = await db
       .insert(users)
       .values({
         email: profile.email,
-        username: baseUsername,
         googleId: profile.id,
         firstName: profile.firstName,
         lastName: profile.lastName,
@@ -130,7 +179,6 @@ export const googleAuth = async (req: Request, res: Response) => {
       .returning({
         id: users.id,
         email: users.email,
-        username: users.username,
         firstName: users.firstName,
         lastName: users.lastName,
         avatar: users.avatar,
@@ -142,9 +190,9 @@ export const googleAuth = async (req: Request, res: Response) => {
     const tokens = await generateAuthTokens({
       id: newUser.id,
       email: newUser.email,
-      username: newUser.username,
       firstName: newUser.firstName,
       lastName: newUser.lastName,
+      activated: true, // OAuth users are activated
     });
 
     // Set refresh token as httpOnly cookie for security
@@ -152,7 +200,7 @@ export const googleAuth = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     });
 
     res.status(201).json({
@@ -174,7 +222,7 @@ export const googleAuth = async (req: Request, res: Response) => {
 
 /**
  * Handle Facebook OAuth sign-in
- * Implements email linking: if user exists with same email, link Facebook to existing account
+ * Implements secure email linking: only links to verified accounts to prevent account takeover
  */
 export const facebookAuth = async (req: Request, res: Response) => {
   try {
@@ -197,56 +245,42 @@ export const facebookAuth = async (req: Request, res: Response) => {
     // Mark token as used to prevent replay attacks
     oauthTokenTracker.markTokenAsUsed(accessToken);
 
-    // Check if user already exists with this email or Facebook ID
-    const [existingUser] = await db
+    // First, check if user already exists with this Facebook ID
+    const [existingUserByFacebookId] = await db
       .select()
       .from(users)
-      .where(
-        or(eq(users.email, profile.email), eq(users.facebookId, profile.id))
-      );
+      .where(eq(users.facebookId, profile.id));
 
-    if (existingUser) {
-      // User exists - link Facebook account if not already linked
-      const linkedProviders = Array.isArray(existingUser.linkedProviders)
-        ? existingUser.linkedProviders
+    if (existingUserByFacebookId) {
+      // User with this Facebook ID exists - update and log them in
+      const linkedProviders = Array.isArray(existingUserByFacebookId.linkedProviders)
+        ? existingUserByFacebookId.linkedProviders
         : [];
 
-      const needsUpdate =
-        existingUser.facebookId !== profile.id ||
-        !linkedProviders.includes("facebook") ||
-        existingUser.avatar !== profile.avatar; // Also update if avatar changed
+      const updatedLinkedProviders = linkedProviders.includes("facebook")
+        ? linkedProviders
+        : [...linkedProviders, "facebook"];
 
-      if (needsUpdate) {
-        // Update user to link Facebook account
-        const updatedLinkedProviders = linkedProviders.includes("facebook")
-          ? linkedProviders
-          : [...linkedProviders, "facebook"];
-
-        await db
-          .update(users)
-          .set({
-            facebookId: profile.id,
-            linkedProviders: updatedLinkedProviders,
-            // Always update avatar from Facebook (Facebook photos are usually up to date)
-            avatar: profile.avatar || existingUser.avatar,
-            name: existingUser.name || profile.name,
-            firstName: existingUser.firstName || profile.firstName,
-            lastName: existingUser.lastName || profile.lastName,
-            verified:
-              existingUser.verified ||
-              (profile.verified !== undefined ? profile.verified : false),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, existingUser.id));
-      }
+      await db
+        .update(users)
+        .set({
+          linkedProviders: updatedLinkedProviders,
+          avatar: profile.avatar || existingUserByFacebookId.avatar,
+          name: existingUserByFacebookId.name || profile.name,
+          firstName: existingUserByFacebookId.firstName || profile.firstName,
+          lastName: existingUserByFacebookId.lastName || profile.lastName,
+          verified: true, // Facebook accounts are verified
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUserByFacebookId.id));
 
       // Generate authentication tokens
       const tokens = await generateAuthTokens({
-        id: existingUser.id,
-        email: existingUser.email,
-        username: existingUser.username,
-        firstName: existingUser.firstName,
-        lastName: existingUser.lastName,
+        id: existingUserByFacebookId.id,
+        email: existingUserByFacebookId.email,
+        firstName: existingUserByFacebookId.firstName,
+        lastName: existingUserByFacebookId.lastName,
+        activated: true, // OAuth users are activated
       });
 
       // Set refresh token as httpOnly cookie for security
@@ -260,13 +294,83 @@ export const facebookAuth = async (req: Request, res: Response) => {
       return res.json({
         message: "Login successful",
         user: {
-          id: existingUser.id,
-          email: existingUser.email,
-          username: existingUser.username,
-          firstName: existingUser.firstName,
-          lastName: existingUser.lastName,
-          avatar: existingUser.avatar || profile.avatar,
-          name: existingUser.name,
+          id: existingUserByFacebookId.id,
+          email: existingUserByFacebookId.email,
+          firstName: existingUserByFacebookId.firstName,
+          lastName: existingUserByFacebookId.lastName,
+          avatar: profile.avatar || existingUserByFacebookId.avatar,
+          name: existingUserByFacebookId.name,
+        },
+        accessToken: tokens.accessToken,
+        idToken: tokens.idToken,
+      });
+    }
+
+    // Check if user exists with this email (but different OAuth provider or email auth)
+    const [existingUserByEmail] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, profile.email));
+
+    if (existingUserByEmail) {
+      // Security: Only link OAuth if the account is already verified
+      // This prevents account takeover by someone who registered with your email first
+      if (!existingUserByEmail.verified && existingUserByEmail.authProvider === "email") {
+        // Account exists but is not verified - potential account takeover attempt
+        return res.status(403).json({
+          error: "An unverified account with this email already exists. Please verify that account first or contact support.",
+        });
+      }
+
+      // User exists with verified account - safe to link Facebook account
+      const linkedProviders = Array.isArray(existingUserByEmail.linkedProviders)
+        ? existingUserByEmail.linkedProviders
+        : [];
+
+      const updatedLinkedProviders = linkedProviders.includes("facebook")
+        ? linkedProviders
+        : [...linkedProviders, "facebook"];
+
+      await db
+        .update(users)
+        .set({
+          facebookId: profile.id,
+          linkedProviders: updatedLinkedProviders,
+          avatar: profile.avatar || existingUserByEmail.avatar,
+          name: existingUserByEmail.name || profile.name,
+          firstName: existingUserByEmail.firstName || profile.firstName,
+          lastName: existingUserByEmail.lastName || profile.lastName,
+          verified: true, // Facebook accounts are verified
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUserByEmail.id));
+
+      // Generate authentication tokens
+      const tokens = await generateAuthTokens({
+        id: existingUserByEmail.id,
+        email: existingUserByEmail.email,
+        firstName: existingUserByEmail.firstName,
+        lastName: existingUserByEmail.lastName,
+        activated: true, // OAuth users are activated
+      });
+
+      // Set refresh token as httpOnly cookie for security
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
+      });
+
+      return res.json({
+        message: "Login successful",
+        user: {
+          id: existingUserByEmail.id,
+          email: existingUserByEmail.email,
+          firstName: existingUserByEmail.firstName,
+          lastName: existingUserByEmail.lastName,
+          avatar: profile.avatar || existingUserByEmail.avatar,
+          name: existingUserByEmail.name,
         },
         accessToken: tokens.accessToken,
         idToken: tokens.idToken,
@@ -274,17 +378,10 @@ export const facebookAuth = async (req: Request, res: Response) => {
     }
 
     // User doesn't exist - create new user with Facebook OAuth
-    // Generate username from email
-    const baseUsername =
-      profile.email.split("@")[0] +
-      "_" +
-      Math.random().toString(36).substring(2, 7);
-
     const [newUser] = await db
       .insert(users)
       .values({
         email: profile.email,
-        username: baseUsername,
         facebookId: profile.id,
         firstName: profile.firstName,
         lastName: profile.lastName,
@@ -297,7 +394,6 @@ export const facebookAuth = async (req: Request, res: Response) => {
       .returning({
         id: users.id,
         email: users.email,
-        username: users.username,
         firstName: users.firstName,
         lastName: users.lastName,
         avatar: users.avatar,
@@ -309,9 +405,9 @@ export const facebookAuth = async (req: Request, res: Response) => {
     const tokens = await generateAuthTokens({
       id: newUser.id,
       email: newUser.email,
-      username: newUser.username,
       firstName: newUser.firstName,
       lastName: newUser.lastName,
+      activated: true, // OAuth users are activated
     });
 
     // Set refresh token as httpOnly cookie for security
@@ -319,7 +415,7 @@ export const facebookAuth = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: parseTokenExpiryToMs(env.REFRESH_TOKEN_EXPIRES_IN),
     });
 
     res.status(201).json({
