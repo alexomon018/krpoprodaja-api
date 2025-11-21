@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { db } from '../db/connection.ts'
 import { products, users, categories } from '../db/schema.ts'
 import { eq, and, desc, ilike, or, sql } from 'drizzle-orm'
+import { processProductImages } from '../utils/imageProcessor.ts'
 
 /**
  * Search products with full-text search
@@ -83,8 +84,11 @@ export async function searchProducts(req: Request, res: Response) {
 
     const totalPages = Math.ceil(count / limitNum)
 
+    // Convert S3 keys to presigned URLs for all products
+    const processedProducts = await processProductImages(productsData)
+
     return res.status(200).json({
-      data: productsData,
+      data: processedProducts,
       pagination: {
         currentPage: pageNum,
         totalPages,

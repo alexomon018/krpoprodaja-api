@@ -104,6 +104,16 @@ const swaggerDocument = {
           totalPages: { type: 'integer' },
         },
       },
+      ImageUploadResult: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', format: 'uri', description: 'S3 URL of the uploaded image' },
+          key: { type: 'string', description: 'S3 object key' },
+          size: { type: 'integer', description: 'File size in bytes' },
+          width: { type: 'integer', description: 'Image width in pixels' },
+          height: { type: 'integer', description: 'Image height in pixels' },
+        },
+      },
     },
   },
   paths: {
@@ -920,6 +930,287 @@ const swaggerDocument = {
                 },
               },
             },
+          },
+        },
+      },
+    },
+    '/api/upload/image': {
+      post: {
+        tags: ['Image Upload'],
+        summary: 'Upload a single image to S3',
+        description: 'Upload a single image file to AWS S3 with automatic optimization (resize, compress, format conversion). Requires authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'folder', in: 'query', schema: { type: 'string', default: 'products' }, description: 'S3 folder path' },
+          { name: 'maxWidth', in: 'query', schema: { type: 'integer', default: 1920 }, description: 'Maximum width in pixels' },
+          { name: 'maxHeight', in: 'query', schema: { type: 'integer', default: 1920 }, description: 'Maximum height in pixels' },
+          { name: 'quality', in: 'query', schema: { type: 'integer', default: 85, minimum: 1, maximum: 100 }, description: 'Image quality (1-100)' },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['jpeg', 'png', 'webp'], default: 'webp' }, description: 'Output format' },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['image'],
+                properties: {
+                  image: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Image file (JPEG, PNG, or WebP, max 5MB)',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Image uploaded successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: { $ref: '#/components/schemas/ImageUploadResult' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid file or file too large',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error during upload',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/upload/images': {
+      post: {
+        tags: ['Image Upload'],
+        summary: 'Upload multiple images to S3',
+        description: 'Upload multiple image files to AWS S3 with automatic optimization. Maximum 10 images per request. Requires authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'folder', in: 'query', schema: { type: 'string', default: 'products' }, description: 'S3 folder path' },
+          { name: 'maxWidth', in: 'query', schema: { type: 'integer', default: 1920 }, description: 'Maximum width in pixels' },
+          { name: 'maxHeight', in: 'query', schema: { type: 'integer', default: 1920 }, description: 'Maximum height in pixels' },
+          { name: 'quality', in: 'query', schema: { type: 'integer', default: 85, minimum: 1, maximum: 100 }, description: 'Image quality (1-100)' },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['jpeg', 'png', 'webp'], default: 'webp' }, description: 'Output format' },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['images'],
+                properties: {
+                  images: {
+                    type: 'array',
+                    items: {
+                      type: 'string',
+                      format: 'binary',
+                    },
+                    description: 'Image files (JPEG, PNG, or WebP, max 5MB each, max 10 files)',
+                    maxItems: 10,
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Images uploaded successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/ImageUploadResult' },
+                    },
+                    count: { type: 'integer', description: 'Number of images uploaded' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid files, too large, or too many files',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error during upload',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/upload/image/{key}': {
+      delete: {
+        tags: ['Image Upload'],
+        summary: 'Delete a single image from S3',
+        description: 'Delete an image from S3 by its key. The key should be URL encoded. Requires authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'key',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'S3 object key (URL encoded), e.g., products/image.webp',
+            example: 'products%2Fimage.webp',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Image deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Image deleted successfully' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid key',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error during deletion',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/upload/images': {
+      delete: {
+        tags: ['Image Upload'],
+        summary: 'Delete multiple images from S3',
+        description: 'Delete multiple images from S3 by their keys or URLs. Requires authentication.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  keys: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Array of S3 object keys',
+                    example: ['products/image1.webp', 'products/image2.webp'],
+                  },
+                  urls: {
+                    type: 'array',
+                    items: { type: 'string', format: 'uri' },
+                    description: 'Array of S3 URLs',
+                    example: [
+                      'https://krpoprodaja-images.s3.eu-central-1.amazonaws.com/products/image1.webp',
+                      'https://krpoprodaja-images.s3.eu-central-1.amazonaws.com/products/image2.webp',
+                    ],
+                  },
+                },
+                description: 'Provide either keys or urls array (not both)',
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Images deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: '2 images deleted successfully' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid or missing keys/urls',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error during deletion',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/upload/extract-key': {
+      get: {
+        tags: ['Image Upload'],
+        summary: 'Extract S3 key from URL',
+        description: 'Extract the S3 object key from a full S3 URL. Useful for getting the key to delete an image. Public endpoint.',
+        parameters: [
+          {
+            name: 'url',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', format: 'uri' },
+            description: 'S3 URL to extract key from',
+            example: 'https://krpoprodaja-images.s3.eu-central-1.amazonaws.com/products/image.webp',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Key extracted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    key: { type: 'string', example: 'products/image.webp' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid URL or URL parameter missing',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
       },
