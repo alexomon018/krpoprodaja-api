@@ -1,5 +1,5 @@
-import multer, { FileFilterCallback } from "multer";
-import { Request } from "express";
+import multer, { type FileFilterCallback } from "multer";
+import type { Request } from "express";
 
 const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || "5242880"); // 5MB default
 const MAX_IMAGES_PER_PRODUCT = parseInt(

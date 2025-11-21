@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import {
   uploadImage,
   uploadMultipleImages,
@@ -7,8 +7,8 @@ import {
   deleteImagesByUrls,
   extractKeyFromUrl,
   validateImage,
-  ImageProcessingOptions,
-} from "../services/s3Service";
+  type ImageProcessingOptions,
+} from "../services/s3Service.ts";
 
 /**
  * Upload a single image
@@ -59,8 +59,7 @@ export const uploadSingleImage = async (
   } catch (error) {
     console.error("Error uploading image:", error);
     res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "Failed to upload image",
+      error: error instanceof Error ? error.message : "Failed to upload image",
     });
   }
 };
@@ -117,8 +116,7 @@ export const uploadImages = async (
   } catch (error) {
     console.error("Error uploading images:", error);
     res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "Failed to upload images",
+      error: error instanceof Error ? error.message : "Failed to upload images",
     });
   }
 };
@@ -139,7 +137,7 @@ export const deleteSingleImage = async (
       return;
     }
 
-    // Decode the key (it might be URL encoded)
+    // Decode the key (it might be URL encoded, including slashes as %2F)
     const decodedKey = decodeURIComponent(key);
 
     await deleteImage(decodedKey);
@@ -151,8 +149,7 @@ export const deleteSingleImage = async (
   } catch (error) {
     console.error("Error deleting image:", error);
     res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "Failed to delete image",
+      error: error instanceof Error ? error.message : "Failed to delete image",
     });
   }
 };
@@ -198,8 +195,7 @@ export const deleteImages = async (
   } catch (error) {
     console.error("Error deleting images:", error);
     res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "Failed to delete images",
+      error: error instanceof Error ? error.message : "Failed to delete images",
     });
   }
 };
@@ -234,8 +230,7 @@ export const extractKey = async (
   } catch (error) {
     console.error("Error extracting key:", error);
     res.status(500).json({
-      error:
-        error instanceof Error ? error.message : "Failed to extract key",
+      error: error instanceof Error ? error.message : "Failed to extract key",
     });
   }
 };

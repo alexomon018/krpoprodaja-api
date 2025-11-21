@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express'
 import { db } from '../db/connection.ts'
-import { products, users, categories, favorites } from '../db/schema.ts'
+import { products, users } from '../db/schema.ts'
 import { eq, and, desc, asc, sql, ilike, or, gte, lte, inArray } from 'drizzle-orm'
 import { z } from 'zod'
+import { processProductImages } from '../utils/imageProcessor.ts'
 
 // Create product validation schema
 const createProductSchema = z.object({
@@ -87,9 +88,12 @@ export async function createProduct(req: Request, res: Response) {
       .leftJoin(users, eq(products.sellerId, users.id))
       .where(eq(products.id, product.id))
 
+    // Convert S3 keys to presigned URLs if needed
+    const processedProduct = await processProductImages(productWithSeller)
+
     return res.status(201).json({
       message: 'Product created successfully',
-      product: productWithSeller,
+      product: processedProduct,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -250,8 +254,11 @@ export async function getProducts(req: Request, res: Response) {
 
     const totalPages = Math.ceil(count / limitNum)
 
+    // Convert S3 keys to presigned URLs for all products
+    const processedProducts = await processProductImages(productsData)
+
     return res.status(200).json({
-      data: productsData,
+      data: processedProducts,
       pagination: {
         currentPage: pageNum,
         totalPages,
@@ -327,7 +334,10 @@ export async function getProductById(req: Request, res: Response) {
         .where(eq(products.id, id))
     }
 
-    return res.status(200).json(product)
+    // Convert S3 keys to presigned URLs if needed
+    const processedProduct = await processProductImages(product)
+
+    return res.status(200).json(processedProduct)
   } catch (error) {
     console.error('Error fetching product:', error)
     return res.status(500).json({ error: 'Failed to fetch product' })
@@ -548,8 +558,11 @@ export async function getSimilarProducts(req: Request, res: Response) {
       .orderBy(desc(products.createdAt))
       .limit(limitNum)
 
+    // Convert S3 keys to presigned URLs for all products
+    const processedProducts = await processProductImages(similarProducts)
+
     return res.status(200).json({
-      data: similarProducts,
+      data: processedProducts,
     })
   } catch (error) {
     console.error('Error fetching similar products:', error)

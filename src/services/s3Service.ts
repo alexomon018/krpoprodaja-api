@@ -130,8 +130,14 @@ export async function uploadImage(
 
     await s3Client.send(command);
 
-    // Construct public URL
-    const url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || "eu-central-1"}.amazonaws.com/${key}`;
+    // Generate presigned URL for private bucket access
+    const getCommand = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+
+    // Generate presigned URL that expires in 7 days (604800 seconds)
+    const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 604800 });
 
     return {
       url,
@@ -258,12 +264,12 @@ export async function deleteImagesByUrls(urls: string[]): Promise<void> {
 /**
  * Generate a presigned URL for temporary access to a private object
  * @param key - S3 object key
- * @param expiresIn - URL expiration time in seconds (default: 1 hour)
+ * @param expiresIn - URL expiration time in seconds (default: 7 days)
  * @returns Presigned URL
  */
 export async function generatePresignedUrl(
   key: string,
-  expiresIn: number = 3600
+  expiresIn: number = 604800 // 7 days default
 ): Promise<string> {
   try {
     const command = new GetObjectCommand({
@@ -279,6 +285,29 @@ export async function generatePresignedUrl(
       `Failed to generate presigned URL: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
+}
+
+/**
+ * Generate presigned URLs for multiple S3 keys
+ * @param keys - Array of S3 object keys
+ * @param expiresIn - URL expiration time in seconds (default: 7 days)
+ * @returns Array of presigned URLs
+ */
+export async function generatePresignedUrls(
+  keys: string[],
+  expiresIn: number = 604800
+): Promise<string[]> {
+  const urlPromises = keys.map((key) => generatePresignedUrl(key, expiresIn));
+  return Promise.all(urlPromises);
+}
+
+/**
+ * Check if a string is an S3 key (not a full URL)
+ * @param str - String to check
+ * @returns True if it's a key, false if it's a URL
+ */
+export function isS3Key(str: string): boolean {
+  return !str.startsWith("http://") && !str.startsWith("https://");
 }
 
 /**

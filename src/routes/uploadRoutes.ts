@@ -5,13 +5,13 @@ import {
   deleteSingleImage,
   deleteImages,
   extractKey,
-} from "../controllers/uploadController";
+} from "../controllers/uploadController.ts";
 import {
   uploadSingleImage,
   uploadMultipleImages,
   handleMulterError,
-} from "../middleware/uploadMiddleware";
-import { authenticateToken } from "../middleware/auth";
+} from "../middleware/uploadMiddleware.ts";
+import { authenticateToken } from "../middleware/auth.ts";
 
 const router = Router();
 
@@ -67,9 +67,9 @@ router.post(
  * @route DELETE /api/upload/image/:key
  * @desc Delete a single image from S3 by key
  * @access Private (requires authentication)
- * @param key - S3 object key (URL encoded)
+ * @param key - S3 object key (URL encoded, slashes must be encoded as %2F)
  */
-router.delete("/image/:key(*)", authenticateToken, deleteSingleImage);
+router.delete("/image/:key", authenticateToken, deleteSingleImage);
 
 /**
  * @route DELETE /api/upload/images

@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { db } from '../db/connection.ts'
 import { favorites, products, users } from '../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
+import { processNestedProductImages } from '../utils/imageProcessor.ts'
 
 /**
  * Get user's favorite products
@@ -86,8 +87,11 @@ export async function getFavorites(req: Request, res: Response) {
 
     const totalPages = Math.ceil(count / limitNum)
 
+    // Convert S3 keys to presigned URLs for all product images
+    const processedData = await processNestedProductImages(formattedData)
+
     return res.status(200).json({
-      data: formattedData,
+      data: processedData,
       pagination: {
         currentPage: pageNum,
         totalPages,
