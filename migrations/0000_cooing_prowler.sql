@@ -41,19 +41,6 @@ CREATE TABLE "messages" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "offers" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"product_id" uuid NOT NULL,
-	"buyer_id" uuid NOT NULL,
-	"seller_id" uuid NOT NULL,
-	"amount" integer NOT NULL,
-	"message" text,
-	"status" varchar(20) DEFAULT 'pending' NOT NULL,
-	"expires_at" timestamp NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "products" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"title" varchar(100) NOT NULL,
@@ -76,22 +63,6 @@ CREATE TABLE "products" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "purchases" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"product_id" uuid,
-	"buyer_id" uuid,
-	"seller_id" uuid,
-	"amount" integer NOT NULL,
-	"shipping_method" varchar(50),
-	"shipping_address" json,
-	"status" varchar(20) DEFAULT 'pending' NOT NULL,
-	"payment_intent_id" varchar(255),
-	"tracking_number" varchar(100),
-	"shipping_carrier" varchar(50),
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"product_id" uuid NOT NULL,
@@ -110,8 +81,7 @@ CREATE TABLE "reviews" (
 CREATE TABLE "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" varchar(255) NOT NULL,
-	"username" varchar(50) NOT NULL,
-	"password" varchar(255) NOT NULL,
+	"password" varchar(255),
 	"first_name" varchar(50),
 	"last_name" varchar(50),
 	"name" varchar(100),
@@ -122,10 +92,20 @@ CREATE TABLE "users" (
 	"verified" boolean DEFAULT false NOT NULL,
 	"verified_seller" boolean DEFAULT false NOT NULL,
 	"response_time" varchar(100),
+	"google_id" varchar(255),
+	"facebook_id" varchar(255),
+	"auth_provider" varchar(20) DEFAULT 'email',
+	"linked_providers" json DEFAULT '[]'::json,
+	"password_reset_token" varchar(255),
+	"password_reset_expires_at" timestamp,
+	"password_reset_used" boolean DEFAULT false,
+	"email_verification_token" varchar(255),
+	"email_verification_expires_at" timestamp,
+	"failed_login_attempts" integer DEFAULT 0 NOT NULL,
+	"locked_until" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "users_email_unique" UNIQUE("email"),
-	CONSTRAINT "users_username_unique" UNIQUE("username")
+	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 ALTER TABLE "conversation_participants" ADD CONSTRAINT "conversation_participants_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -135,13 +115,31 @@ ALTER TABLE "favorites" ADD CONSTRAINT "favorites_user_id_users_id_fk" FOREIGN K
 ALTER TABLE "favorites" ADD CONSTRAINT "favorites_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "offers" ADD CONSTRAINT "offers_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "offers" ADD CONSTRAINT "offers_buyer_id_users_id_fk" FOREIGN KEY ("buyer_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "offers" ADD CONSTRAINT "offers_seller_id_users_id_fk" FOREIGN KEY ("seller_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_seller_id_users_id_fk" FOREIGN KEY ("seller_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "purchases" ADD CONSTRAINT "purchases_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "purchases" ADD CONSTRAINT "purchases_buyer_id_users_id_fk" FOREIGN KEY ("buyer_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "purchases" ADD CONSTRAINT "purchases_seller_id_users_id_fk" FOREIGN KEY ("seller_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "reviews" ADD CONSTRAINT "reviews_reviewer_id_users_id_fk" FOREIGN KEY ("reviewer_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "reviews" ADD CONSTRAINT "reviews_reviewer_id_users_id_fk" FOREIGN KEY ("reviewer_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "conversation_participants_conversation_user_idx" ON "conversation_participants" USING btree ("conversation_id","user_id");--> statement-breakpoint
+CREATE INDEX "conversation_participants_user_id_idx" ON "conversation_participants" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "conversation_participants_conversation_id_idx" ON "conversation_participants" USING btree ("conversation_id");--> statement-breakpoint
+CREATE INDEX "conversations_product_id_idx" ON "conversations" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "conversations_updated_at_idx" ON "conversations" USING btree ("updated_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE UNIQUE INDEX "favorites_user_product_idx" ON "favorites" USING btree ("user_id","product_id");--> statement-breakpoint
+CREATE INDEX "favorites_user_created_at_idx" ON "favorites" USING btree ("user_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "favorites_product_id_idx" ON "favorites" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "messages_conversation_created_at_idx" ON "messages" USING btree ("conversation_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "messages_sender_id_idx" ON "messages" USING btree ("sender_id");--> statement-breakpoint
+CREATE INDEX "messages_read_idx" ON "messages" USING btree ("read");--> statement-breakpoint
+CREATE INDEX "products_status_created_at_idx" ON "products" USING btree ("status","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "products_seller_id_idx" ON "products" USING btree ("seller_id");--> statement-breakpoint
+CREATE INDEX "products_category_id_idx" ON "products" USING btree ("category_id");--> statement-breakpoint
+CREATE INDEX "products_price_idx" ON "products" USING btree ("price");--> statement-breakpoint
+CREATE INDEX "products_size_idx" ON "products" USING btree ("size");--> statement-breakpoint
+CREATE INDEX "products_condition_idx" ON "products" USING btree ("condition");--> statement-breakpoint
+CREATE INDEX "products_brand_idx" ON "products" USING btree ("brand");--> statement-breakpoint
+CREATE INDEX "products_location_idx" ON "products" USING btree ("location");--> statement-breakpoint
+CREATE INDEX "products_status_category_created_at_idx" ON "products" USING btree ("status","category_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "reviews_product_id_idx" ON "reviews" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "reviews_reviewer_id_idx" ON "reviews" USING btree ("reviewer_id");--> statement-breakpoint
+CREATE INDEX "reviews_product_created_at_idx" ON "reviews" USING btree ("product_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "reviews_rating_idx" ON "reviews" USING btree ("rating");

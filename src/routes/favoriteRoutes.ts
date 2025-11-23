@@ -5,14 +5,14 @@ import {
   removeFavorite,
   checkFavorite,
 } from '../controllers/favoriteController.ts'
-import { authenticateToken } from '../middleware/auth.ts'
+import { authenticateToken, requireVerifiedEmail } from '../middleware/auth.ts'
 
 const router = Router()
 
-// All favorite routes require authentication
-router.get('/', authenticateToken, getFavorites)
-router.post('/:productId', authenticateToken, addFavorite)
-router.delete('/:productId', authenticateToken, removeFavorite)
-router.get('/check/:productId', authenticateToken, checkFavorite)
+// All favorite routes require authentication + email verification
+router.get('/', authenticateToken, requireVerifiedEmail, getFavorites)
+router.post('/:productId', authenticateToken, requireVerifiedEmail, addFavorite)
+router.delete('/:productId', authenticateToken, requireVerifiedEmail, removeFavorite)
+router.get('/check/:productId', authenticateToken, requireVerifiedEmail, checkFavorite)
 
 export default router

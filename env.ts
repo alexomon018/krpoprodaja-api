@@ -57,6 +57,7 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().email().default('noreply@example.com'),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   PASSWORD_RESET_TOKEN_EXPIRES_IN: z.string().default('1h'),
+  EMAIL_VERIFICATION_TOKEN_EXPIRES_IN: z.string().default('24h'),
 
   // CORS
   CORS_ORIGIN: z

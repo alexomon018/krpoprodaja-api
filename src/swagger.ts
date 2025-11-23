@@ -46,7 +46,6 @@ const swaggerDocument = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           email: { type: 'string', format: 'email' },
-          username: { type: 'string' },
           firstName: { type: 'string' },
           lastName: { type: 'string' },
           name: { type: 'string' },
@@ -121,17 +120,16 @@ const swaggerDocument = {
       post: {
         tags: ['Authentication'],
         summary: 'Register a new user',
-        description: 'Create a new user account with email, username, and password',
+        description: 'Create a new user account with email and password. A verification email will be sent. Users must verify their email before logging in.',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['email', 'username', 'password'],
+                required: ['email', 'password'],
                 properties: {
                   email: { type: 'string', format: 'email', example: 'user@example.com' },
-                  username: { type: 'string', minLength: 3, maxLength: 50, example: 'johndoe' },
                   password: { type: 'string', minLength: 8, format: 'password', example: 'SecurePass123' },
                   firstName: { type: 'string', example: 'John' },
                   lastName: { type: 'string', example: 'Doe' },
@@ -142,17 +140,20 @@ const swaggerDocument = {
         },
         responses: {
           '201': {
-            description: 'User successfully registered',
+            description: 'User successfully registered - verification email sent',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
-                    message: { type: 'string', example: 'User created successfully' },
-                    user: { $ref: '#/components/schemas/User' },
-                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
-                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
-                    refreshToken: { type: 'string', description: 'Refresh token for getting new tokens (30 days)' },
+                    message: { type: 'string', example: 'Registration successful. Please check your email to verify your account.' },
+                    user: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        email: { type: 'string', format: 'email' },
+                      },
+                    },
                   },
                 },
               },
@@ -169,7 +170,7 @@ const swaggerDocument = {
       post: {
         tags: ['Authentication'],
         summary: 'Login user',
-        description: 'Authenticate user and receive JWT token',
+        description: 'Authenticate user and receive JWT tokens. Users must verify their email before logging in.',
         requestBody: {
           required: true,
           content: {
@@ -206,6 +207,19 @@ const swaggerDocument = {
           '401': {
             description: 'Invalid credentials',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '403': {
+            description: 'Email not verified',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    error: { type: 'string', example: 'Please verify your email address before logging in. Check your inbox for the verification link.' },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -312,7 +326,6 @@ const swaggerDocument = {
                       properties: {
                         id: { type: 'string', format: 'uuid' },
                         email: { type: 'string', format: 'email' },
-                        username: { type: 'string' },
                       },
                     },
                   },
@@ -579,6 +592,121 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/auth/send-verification-email': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Send or resend email verification',
+        description: 'Send a verification email to the user. Use this to resend verification emails if the user did not receive the initial one. Always returns success to prevent email enumeration.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email'],
+                properties: {
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    description: 'Email address to send verification to',
+                    example: 'user@example.com',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Verification email sent (or user already verified)',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                      example: 'Verification email has been sent.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Email is required or email is already verified',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to send verification email',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/auth/verify-email': {
+      post: {
+        tags: ['Authentication'],
+        summary: 'Verify email with token',
+        description: 'Verify user email using the token received via email. After successful verification, the user is automatically logged in and receives authentication tokens. The token is valid for 24 hours (configurable).',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['token'],
+                properties: {
+                  token: {
+                    type: 'string',
+                    description: 'Verification token from email link',
+                    example: 'a1b2c3d4e5f6...',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Email verified successfully - user logged in',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                      example: 'Email verified successfully. You are now logged in.',
+                    },
+                    user: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        email: { type: 'string', format: 'email' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
+                        verified: { type: 'boolean', example: true },
+                      },
+                    },
+                    accessToken: { type: 'string', description: 'Access token for API requests (30 min)' },
+                    idToken: { type: 'string', description: 'ID token with user info (30 min)' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid request - token missing, invalid/expired, or email already verified',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to verify email',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/users/profile': {
       get: {
         tags: ['Users'],
@@ -621,7 +749,6 @@ const swaggerDocument = {
                 type: 'object',
                 properties: {
                   email: { type: 'string', format: 'email' },
-                  username: { type: 'string', minLength: 3, maxLength: 50 },
                   firstName: { type: 'string', maxLength: 50 },
                   lastName: { type: 'string', maxLength: 50 },
                 },

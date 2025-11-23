@@ -13,7 +13,6 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
       .select({
         id: users.id,
         email: users.email,
-        username: users.username,
         firstName: users.firstName,
         lastName: users.lastName,
         name: users.name,
@@ -47,13 +46,12 @@ export const updateProfile = async (
 ) => {
   try {
     const userId = req.user!.id
-    const { email, username, firstName, lastName } = req.body
+    const { email, firstName, lastName } = req.body
 
     const [updatedUser] = await db
       .update(users)
       .set({
         email,
-        username,
         firstName,
         lastName,
         updatedAt: new Date(),
@@ -62,7 +60,6 @@ export const updateProfile = async (
       .returning({
         id: users.id,
         email: users.email,
-        username: users.username,
         firstName: users.firstName,
         lastName: users.lastName,
         updatedAt: users.updatedAt,

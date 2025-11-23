@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1763057904858,
-      "tag": "0000_clammy_wind_dancer",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1763058471369,
-      "tag": "0001_careless_magma",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1763058855825,
-      "tag": "0002_slippery_brood",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1763289360278,
-      "tag": "0003_youthful_venom",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1763374420715,
-      "tag": "0004_classy_ravenous",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1763481903309,
-      "tag": "0005_stiff_queen_noir",
+      "when": 1763727994267,
+      "tag": "0000_cooing_prowler",
       "breakpoints": true
     }
   ]

@@ -8,7 +8,7 @@ import {
   updateProductStatus,
   getSimilarProducts,
 } from '../controllers/productController.ts'
-import { authenticateToken, optionalAuth } from '../middleware/auth.ts'
+import { authenticateToken, optionalAuth, requireVerifiedEmail } from '../middleware/auth.ts'
 
 const router = Router()
 
@@ -17,10 +17,10 @@ router.get('/', getProducts)
 router.get('/:id', optionalAuth, getProductById)
 router.get('/:id/similar', getSimilarProducts)
 
-// Protected routes (require authentication)
-router.post('/', authenticateToken, createProduct)
-router.put('/:id', authenticateToken, updateProduct)
-router.delete('/:id', authenticateToken, deleteProduct)
-router.patch('/:id/status', authenticateToken, updateProductStatus)
+// Protected routes (require authentication + email verification)
+router.post('/', authenticateToken, requireVerifiedEmail, createProduct)
+router.put('/:id', authenticateToken, requireVerifiedEmail, updateProduct)
+router.delete('/:id', authenticateToken, requireVerifiedEmail, deleteProduct)
+router.patch('/:id/status', authenticateToken, requireVerifiedEmail, updateProductStatus)
 
 export default router
