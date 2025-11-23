@@ -63,7 +63,7 @@ export const resetPasswordCompleteLimiter = rateLimit({
  */
 export const phoneVerificationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 requests per hour per IP
+  max: 15, // 5 requests per hour per IP
   message: {
     error: "Too many phone verification attempts, please try again later",
   },

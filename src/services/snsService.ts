@@ -60,7 +60,9 @@ export async function sendSMS(
   } catch (error) {
     console.error("Error sending SMS:", error);
     throw new Error(
-      `Failed to send SMS: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Failed to send SMS: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
     );
   }
 }
