@@ -59,6 +59,12 @@ const envSchema = z.object({
   PASSWORD_RESET_TOKEN_EXPIRES_IN: z.string().default('1h'),
   EMAIL_VERIFICATION_TOKEN_EXPIRES_IN: z.string().default('24h'),
 
+  // SMS - AWS SNS
+  AWS_REGION: z.string().default('eu-central-1'),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  PHONE_VERIFICATION_CODE_EXPIRES_IN: z.string().default('10m'),
+
   // CORS
   CORS_ORIGIN: z
     .string()
