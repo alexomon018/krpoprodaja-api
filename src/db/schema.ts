@@ -42,6 +42,10 @@ export const users = pgTable("users", {
   // Email verification fields
   emailVerificationToken: varchar("email_verification_token", { length: 255 }),
   emailVerificationExpiresAt: timestamp("email_verification_expires_at"),
+  // Phone verification fields
+  phoneVerificationCode: varchar("phone_verification_code", { length: 6 }),
+  phoneVerificationExpiresAt: timestamp("phone_verification_expires_at"),
+  phoneVerified: boolean("phone_verified").default(false).notNull(),
   // Account security fields
   failedLoginAttempts: integer("failed_login_attempts").default(0).notNull(),
   lockedUntil: timestamp("locked_until"),

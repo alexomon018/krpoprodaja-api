@@ -35,8 +35,10 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.936.0",
+    "@aws-sdk/client-sns": "^3.936.0",
     "@aws-sdk/s3-request-presigner": "^3.936.0",
     "@epic-web/remember": "^1.1.0",
+    "@infobip-api/sdk": "^0.3.2",
     "@types/swagger-ui-express": "^4.1.8",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",

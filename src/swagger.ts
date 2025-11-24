@@ -53,8 +53,9 @@ const swaggerDocument = {
           avatar: { type: 'string', format: 'uri' },
           bio: { type: 'string' },
           location: { type: 'string' },
-          verified: { type: 'boolean' },
-          verifiedSeller: { type: 'boolean' },
+          verified: { type: 'boolean', description: 'Email verification status' },
+          phoneVerified: { type: 'boolean', description: 'Phone verification status' },
+          verifiedSeller: { type: 'boolean', description: 'Verified seller badge (requires both email and phone verification)' },
           responseTime: { type: 'string' },
           createdAt: { type: 'string', format: 'date-time' },
         },
@@ -803,6 +804,161 @@ const swaggerDocument = {
           },
           '400': {
             description: 'Invalid input',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/users/phone/send-verification': {
+      post: {
+        tags: ['Users', 'Phone Verification'],
+        summary: 'Send phone verification SMS',
+        description: 'Add or update phone number and send a 6-digit verification code via SMS. The code expires in 10 minutes. Rate limited to 5 requests per hour.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['phone'],
+                properties: {
+                  phone: {
+                    type: 'string',
+                    pattern: '^\\+?[1-9]\\d{1,14}$',
+                    description: 'Phone number in E.164 format',
+                    example: '+381601234567',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Verification code sent successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Verification code sent successfully. Please check your phone.' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid phone number format or phone already registered to another account',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '429': {
+            description: 'Too many requests - Rate limit exceeded',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to send verification SMS',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/users/phone/verify': {
+      post: {
+        tags: ['Users', 'Phone Verification'],
+        summary: 'Verify phone with code',
+        description: 'Verify the phone number using the 6-digit code received via SMS. Upon successful verification, user becomes a verified seller if email is also verified.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['code'],
+                properties: {
+                  code: {
+                    type: 'string',
+                    minLength: 6,
+                    maxLength: 6,
+                    pattern: '^[0-9]{6}$',
+                    description: '6-digit verification code',
+                    example: '123456',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Phone verified successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Phone number verified successfully.' },
+                    phoneVerified: { type: 'boolean', example: true },
+                    verifiedSeller: { type: 'boolean', example: true, description: 'True if both email and phone are verified' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid or expired verification code',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '429': {
+            description: 'Too many requests - Rate limit exceeded',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/users/phone/resend-verification': {
+      post: {
+        tags: ['Users', 'Phone Verification'],
+        summary: 'Resend phone verification SMS',
+        description: 'Resend the verification code to the phone number already on file. Use this if the previous code expired or was not received.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Verification code resent successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Verification code resent successfully. Please check your phone.' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'No phone number on file or phone already verified',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '429': {
+            description: 'Too many requests - Rate limit exceeded',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to send verification SMS',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
