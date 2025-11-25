@@ -8,6 +8,7 @@ import userRoutes from './routes/userRoutes.ts'
 import productRoutes from './routes/productRoutes.ts'
 import favoriteRoutes from './routes/favoriteRoutes.ts'
 import categoryRoutes from './routes/categoryRoutes.ts'
+import brandRoutes from './routes/brandRoutes.ts'
 import searchRoutes from './routes/searchRoutes.ts'
 import uploadRoutes from './routes/uploadRoutes.ts'
 import morgan from 'morgan'
@@ -63,6 +64,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/products', productRoutes)
 app.use('/api/favorites', favoriteRoutes)
 app.use('/api/categories', categoryRoutes)
+app.use('/api/brands', brandRoutes)
 app.use('/api/search', searchRoutes)
 app.use('/api/upload', uploadRoutes)
 

@@ -95,6 +95,13 @@ const swaggerDocument = {
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      Brand: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+        },
+      },
       Pagination: {
         type: 'object',
         properties: {
@@ -1125,6 +1132,35 @@ const swaggerDocument = {
                 schema: { type: 'array', items: { $ref: '#/components/schemas/Category' } },
               },
             },
+          },
+        },
+      },
+    },
+    '/api/brands': {
+      get: {
+        tags: ['Brands'],
+        summary: 'Get all brands',
+        description: 'Retrieve all available brands sorted alphabetically. This endpoint is used to populate brand dropdowns in the frontend.',
+        responses: {
+          '200': {
+            description: 'Brands retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    brands: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Brand' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },
       },
