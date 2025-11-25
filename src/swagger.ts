@@ -102,6 +102,16 @@ const swaggerDocument = {
           name: { type: 'string' },
         },
       },
+      City: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'City name' },
+          population: { type: 'integer', description: 'City population' },
+          latitude: { type: 'number', format: 'float', description: 'Latitude coordinate' },
+          longitude: { type: 'number', format: 'float', description: 'Longitude coordinate' },
+          adminName: { type: 'string', description: 'Region/Province name' },
+        },
+      },
       Pagination: {
         type: 'object',
         properties: {
@@ -1529,6 +1539,175 @@ const swaggerDocument = {
           },
           '500': {
             description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/cities/serbia': {
+      get: {
+        tags: ['Cities'],
+        summary: 'Get Serbian cities',
+        description: 'Retrieve cities from Serbia with optional filtering by population or search term. Results are cached for 24 hours for better performance.',
+        parameters: [
+          {
+            name: 'minPopulation',
+            in: 'query',
+            schema: { type: 'integer' },
+            description: 'Filter cities by minimum population',
+            example: 100000
+          },
+          {
+            name: 'search',
+            in: 'query',
+            schema: { type: 'string' },
+            description: 'Search cities by name (case-insensitive)',
+            example: 'Beograd'
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Cities retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    country: { type: 'string', example: 'RS' },
+                    countryName: { type: 'string', example: 'Serbia' },
+                    count: { type: 'integer', example: 7 },
+                    cities: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/City' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Failed to fetch cities',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/cities/{countryCode}': {
+      get: {
+        tags: ['Cities'],
+        summary: 'Get cities by country code',
+        description: 'Retrieve cities from any country using ISO 3166-1 alpha-2 country code (e.g., RS for Serbia, US for United States). Results are cached for 24 hours.',
+        parameters: [
+          {
+            name: 'countryCode',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', pattern: '^[A-Z]{2}$' },
+            description: '2-letter ISO country code (e.g., RS, US, GB)',
+            example: 'RS'
+          },
+          {
+            name: 'minPopulation',
+            in: 'query',
+            schema: { type: 'integer' },
+            description: 'Filter cities by minimum population',
+            example: 50000
+          },
+          {
+            name: 'search',
+            in: 'query',
+            schema: { type: 'string' },
+            description: 'Search cities by name (case-insensitive)',
+            example: 'New'
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Cities retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    country: { type: 'string', example: 'RS' },
+                    count: { type: 'integer', example: 250 },
+                    cities: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/City' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid country code format',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Failed to fetch cities',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/cities/cache/{countryCode}': {
+      delete: {
+        tags: ['Cities'],
+        summary: 'Clear cities cache for specific country',
+        description: 'Clear the cached cities data for a specific country. Useful for forcing a refresh of city data.',
+        parameters: [
+          {
+            name: 'countryCode',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', pattern: '^[A-Z]{2}$' },
+            description: '2-letter ISO country code',
+            example: 'RS'
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Cache cleared successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Cache cleared for RS' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Failed to clear cache',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/cities/cache': {
+      delete: {
+        tags: ['Cities'],
+        summary: 'Clear all cities cache',
+        description: 'Clear the cached cities data for all countries. Useful for forcing a complete refresh.',
+        responses: {
+          '200': {
+            description: 'Cache cleared successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'All cache cleared' },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Failed to clear cache',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
         },

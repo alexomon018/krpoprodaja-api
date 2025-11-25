@@ -58,8 +58,6 @@ export const users = pgTable("users", {
 export const categories = pgTable("categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 100 }).notNull(),
-  slug: varchar("slug", { length: 100 }).notNull().unique(),
-  icon: varchar("icon", { length: 50 }), // Icon name/identifier
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -399,7 +397,6 @@ export const selectUserSchema = createSelectSchema(users);
 
 export const insertCategorySchema = createInsertSchema(categories, {
   name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(100),
 });
 export const selectCategorySchema = createSelectSchema(categories);
 
