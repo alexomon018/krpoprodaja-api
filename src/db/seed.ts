@@ -2,6 +2,7 @@ import { db } from './connection.ts'
 import {
   users,
   categories,
+  brands,
   products,
   favorites,
   reviews,
@@ -10,6 +11,8 @@ import {
   messages,
 } from './schema.ts'
 import { hashPassword } from '../utils/password.ts'
+import * as fs from 'fs'
+import * as path from 'path'
 
 async function seed() {
   console.log('🌱 Starting database seed...\n')
@@ -24,6 +27,7 @@ async function seed() {
     await db.delete(favorites)
     await db.delete(products)
     await db.delete(categories)
+    await db.delete(brands)
     await db.delete(users)
     console.log('✅ Existing data cleared\n')
 
@@ -114,6 +118,43 @@ async function seed() {
       .returning()
 
     console.log(`✅ Created ${6} categories\n`)
+
+    // ==================== BRANDS ====================
+    console.log('🏷️  Creating brands...')
+
+    // Read brands from brands.js file
+    const brandsFilePath = path.join(process.cwd(), 'brands.js')
+    const brandsFileContent = fs.readFileSync(brandsFilePath, 'utf-8')
+
+    // Extract brands array using regex
+    const brandsMatch = brandsFileContent.match(/const brands = \[([\s\S]*?)\];/)
+    if (!brandsMatch) {
+      throw new Error('Could not parse brands from brands.js')
+    }
+
+    // Parse brand names from the matched content
+    const brandNamesRaw = brandsMatch[1]
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.startsWith('"'))
+      .map(line => line.replace(/^"|",?$/g, ''))
+
+    console.log(`Found ${brandNamesRaw.length} brands to import...`)
+
+    // Insert brands in batches for better performance
+    const batchSize = 1000
+    let totalInserted = 0
+
+    for (let i = 0; i < brandNamesRaw.length; i += batchSize) {
+      const batch = brandNamesRaw.slice(i, i + batchSize)
+      await db.insert(brands).values(
+        batch.map(name => ({ name }))
+      )
+      totalInserted += batch.length
+      console.log(`  Inserted ${totalInserted}/${brandNamesRaw.length} brands...`)
+    }
+
+    console.log(`✅ Created ${brandNamesRaw.length} brands\n`)
 
     // ==================== PRODUCTS ====================
     console.log('🛍️  Creating products...')
@@ -498,6 +539,7 @@ async function seed() {
     console.log('📊 Summary:')
     console.log(`   - Users: 5`)
     console.log(`   - Categories: 6`)
+    console.log(`   - Brands: ${(await db.select().from(brands)).length}`)
     console.log(`   - Products: ${productsData.length}`)
     console.log(`   - Favorites: 8`)
     console.log(`   - Reviews: 3`)

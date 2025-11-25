@@ -64,6 +64,15 @@ export const categories = pgTable("categories", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ==================== BRANDS ====================
+
+export const brands = pgTable("brands", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ==================== PRODUCTS ====================
 
 export const products = pgTable(
@@ -290,6 +299,10 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
   products: many(products),
 }));
 
+export const brandsRelations = relations(brands, ({ many }) => ({
+  products: many(products),
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   seller: one(users, {
     fields: [products.sellerId],
@@ -390,6 +403,11 @@ export const insertCategorySchema = createInsertSchema(categories, {
 });
 export const selectCategorySchema = createSelectSchema(categories);
 
+export const insertBrandSchema = createInsertSchema(brands, {
+  name: z.string().min(1).max(100),
+});
+export const selectBrandSchema = createSelectSchema(brands);
+
 export const insertProductSchema = createInsertSchema(products, {
   title: z.string().min(10).max(100),
   description: z.string().max(2000).optional(),
@@ -441,6 +459,9 @@ export type NewUser = typeof users.$inferInsert;
 
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
+
+export type Brand = typeof brands.$inferSelect;
+export type NewBrand = typeof brands.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
