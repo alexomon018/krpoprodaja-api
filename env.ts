@@ -78,6 +78,9 @@ const envSchema = z.object({
     })
     .default([]),
 
+  // Cities API - Geonames
+  GEONAMES_USERNAME: z.string().optional(),
+
   // Logging
   LOG_LEVEL: z
     .enum(["error", "warn", "info", "debug", "trace"])

@@ -11,6 +11,7 @@ import categoryRoutes from './routes/categoryRoutes.ts'
 import brandRoutes from './routes/brandRoutes.ts'
 import searchRoutes from './routes/searchRoutes.ts'
 import uploadRoutes from './routes/uploadRoutes.ts'
+import citiesRoutes from './routes/citiesRoutes.ts'
 import morgan from 'morgan'
 import { setupSwagger } from './swagger.ts'
 import { csrfTokenMiddleware } from './middleware/csrf.ts'
@@ -67,6 +68,7 @@ app.use('/api/categories', categoryRoutes)
 app.use('/api/brands', brandRoutes)
 app.use('/api/search', searchRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/cities', citiesRoutes)
 
 // 404 handler
 app.use((req, res) => {
