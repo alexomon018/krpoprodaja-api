@@ -8,6 +8,7 @@ import {
   generateVerificationCode,
   sendPhoneVerificationSMS,
 } from "../services/snsService.ts";
+import { parseTokenExpiryToMs } from "../utils/jwt.ts";
 import { env } from "../../env.ts";
 
 export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
@@ -128,28 +129,6 @@ export const changePassword = async (
   }
 };
 
-/**
- * Parse token expiry string (e.g., "10m", "1h") to milliseconds
- */
-function parseTokenExpiry(expiryString: string): number {
-  const match = expiryString.match(/^(\d+)([smhd])$/);
-  if (!match) {
-    throw new Error("Invalid token expiry format");
-  }
-
-  const value = parseInt(match[1]);
-  const unit = match[2];
-
-  const multipliers = {
-    s: 1000, // seconds
-    m: 60 * 1000, // minutes
-    h: 60 * 60 * 1000, // hours
-    d: 24 * 60 * 60 * 1000, // days
-  };
-
-  return value * multipliers[unit as keyof typeof multipliers];
-}
-
 export const sendPhoneVerification = async (
   req: AuthenticatedRequest,
   res: Response
@@ -210,7 +189,7 @@ export const sendPhoneVerification = async (
     const verificationCode = generateVerificationCode();
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiry(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with phone number and verification code
@@ -355,7 +334,7 @@ export const resendPhoneVerification = async (
     const verificationCode = generateVerificationCode();
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiry(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with new verification code

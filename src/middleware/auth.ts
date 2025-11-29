@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyAccessToken, type AccessTokenPayload } from '../utils/jwt.ts'
-import { jwtRevocationManager } from '../utils/jwtRevocation.ts'
+import { redisJwtRevocationManager } from '../utils/jwtRevocationRedis.ts'
 import { decodeJwt } from 'jose'
 
 export interface AuthenticatedRequest extends Request {
@@ -37,7 +37,8 @@ export const authenticateToken = async (
     }
 
     // Check if token has been revoked
-    if (!jwtRevocationManager.isValid(payload.id, issuedAt)) {
+    const isValid = await redisJwtRevocationManager.isValid(payload.id, issuedAt)
+    if (!isValid) {
       return res.status(401).json({ error: 'Token has been revoked. Please login again.' })
     }
 

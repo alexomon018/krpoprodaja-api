@@ -244,7 +244,7 @@ export const generateToken = async (payload: { id: string; email: string }): Pro
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(env.JWT_EXPIRES_IN || '7d')
+    .setExpirationTime('7d')
     .sign(secretKey)
 }
 

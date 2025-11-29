@@ -9,18 +9,55 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
+import { env } from "../../env.ts";
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "eu-central-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-  },
-});
+// Initialize S3 client with validated env
+const createS3Client = () => {
+  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
+    throw new Error("AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.");
+  }
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || "krpoprodaja-images";
-const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || "5242880"); // 5MB default
+  return new S3Client({
+    region: env.AWS_REGION,
+    credentials: {
+      accessKeyId: env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    },
+  });
+};
+
+let s3Client: S3Client;
+try {
+  s3Client = createS3Client();
+} catch (error) {
+  console.error("Failed to initialize S3 client:", error);
+  // Re-throw to prevent app startup with misconfigured S3
+  throw error;
+}
+
+// S3 configuration constants from validated env
+const BUCKET_NAME = env.S3_BUCKET_NAME;
+const MAX_IMAGE_SIZE = env.MAX_IMAGE_SIZE;
+
+/**
+ * Custom error types for S3 operations
+ */
+export class S3ServiceError extends Error {
+  originalError?: unknown;
+
+  constructor(message: string, originalError?: unknown) {
+    super(message);
+    this.name = "S3ServiceError";
+    this.originalError = originalError;
+  }
+}
+
+export class ImageValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImageValidationError";
+  }
+}
 
 export interface ImageUploadResult {
   url: string;
@@ -103,7 +140,7 @@ export async function uploadImage(
 
     // Check processed image size
     if (finalBuffer.length > MAX_IMAGE_SIZE) {
-      throw new Error(
+      throw new ImageValidationError(
         `Image size (${(finalBuffer.length / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (${(MAX_IMAGE_SIZE / 1024 / 1024).toFixed(2)}MB)`
       );
     }
@@ -147,10 +184,15 @@ export async function uploadImage(
       height: finalMetadata.height || 0,
     };
   } catch (error) {
+    // Re-throw validation errors as-is
+    if (error instanceof ImageValidationError) {
+      throw error;
+    }
+
+    // Wrap other errors in S3ServiceError
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error uploading image to S3:", error);
-    throw new Error(
-      `Failed to upload image: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    throw new S3ServiceError(`Failed to upload image: ${errorMessage}`, error);
   }
 }
 
@@ -187,10 +229,9 @@ export async function deleteImage(key: string): Promise<void> {
     await s3Client.send(command);
     console.log(`Successfully deleted image: ${key}`);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error deleting image from S3:", error);
-    throw new Error(
-      `Failed to delete image: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    throw new S3ServiceError(`Failed to delete image: ${errorMessage}`, error);
   }
 }
 
@@ -213,10 +254,9 @@ export async function deleteMultipleImages(keys: string[]): Promise<void> {
     await s3Client.send(command);
     console.log(`Successfully deleted ${keys.length} images`);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error deleting multiple images from S3:", error);
-    throw new Error(
-      `Failed to delete images: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    throw new S3ServiceError(`Failed to delete images: ${errorMessage}`, error);
   }
 }
 
@@ -280,10 +320,9 @@ export async function generatePresignedUrl(
     const url = await getSignedUrl(s3Client, command, { expiresIn });
     return url;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error generating presigned URL:", error);
-    throw new Error(
-      `Failed to generate presigned URL: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    throw new S3ServiceError(`Failed to generate presigned URL: ${errorMessage}`, error);
   }
 }
 
@@ -341,23 +380,18 @@ export function validateImage(
   mimeType: string,
   maxSize: number = MAX_IMAGE_SIZE
 ): void {
-  // Check MIME type
-  const allowedTypes =
-    process.env.ALLOWED_IMAGE_TYPES?.split(",") || [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ];
+  // Check MIME type using validated env
+  const allowedTypes = env.ALLOWED_IMAGE_TYPES;
 
   if (!allowedTypes.includes(mimeType)) {
-    throw new Error(
+    throw new ImageValidationError(
       `Invalid image type. Allowed types: ${allowedTypes.join(", ")}`
     );
   }
 
   // Check file size
   if (buffer.length > maxSize) {
-    throw new Error(
+    throw new ImageValidationError(
       `Image size (${(buffer.length / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (${(maxSize / 1024 / 1024).toFixed(2)}MB)`
     );
   }
