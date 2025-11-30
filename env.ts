@@ -26,11 +26,21 @@ const envSchema = z.object({
   // Server
   PORT: z.coerce.number().positive().default(3000),
   HOST: z.string().default("localhost"),
+  REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds default
 
   // Database
   DATABASE_URL: z.string().startsWith("postgresql://"),
   DATABASE_POOL_MIN: z.coerce.number().min(0).default(2),
   DATABASE_POOL_MAX: z.coerce.number().positive().default(10),
+  DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().positive().default(10000),
+
+  // Redis
+  REDIS_HOST: z.string().default("localhost"),
+  REDIS_PORT: z.coerce.number().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.coerce.number().min(0).max(15).default(0),
+  REDIS_TLS_ENABLED: z.coerce.boolean().default(false),
 
   // JWT & Auth
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
@@ -65,6 +75,14 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
 
   PHONE_VERIFICATION_CODE_EXPIRES_IN: z.string().default("10m"),
+
+  // S3 - Image Storage
+  S3_BUCKET_NAME: z.string().default("krpoprodaja-images"),
+  MAX_IMAGE_SIZE: z.coerce.number().positive().default(5242880), // 5MB default
+  ALLOWED_IMAGE_TYPES: z
+    .string()
+    .default("image/jpeg,image/png,image/webp")
+    .transform((val) => val.split(",").map((type) => type.trim())),
 
   // CORS
   CORS_ORIGIN: z
@@ -101,7 +119,7 @@ try {
     console.error(JSON.stringify(error.flatten().fieldErrors, null, 2));
 
     // More detailed error messages
-    error.errors.forEach((err) => {
+    error.issues.forEach((err) => {
       const path = err.path.join(".");
       console.error(`  ${path}: ${err.message}`);
     });

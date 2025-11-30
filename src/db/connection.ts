@@ -7,10 +7,15 @@ import { remember } from '@epic-web/remember'
 const createPool = () => {
   return new Pool({
     connectionString: env.DATABASE_URL,
+    min: env.DATABASE_POOL_MIN,
+    max: env.DATABASE_POOL_MAX,
+    idleTimeoutMillis: env.DATABASE_IDLE_TIMEOUT_MS,
+    connectionTimeoutMillis: env.DATABASE_CONNECTION_TIMEOUT_MS,
+    maxUses: 7500, // Close and replace connections after 7500 uses to prevent memory leaks
   })
 }
 
-let client
+let client: Pool
 
 if (isProd()) {
   client = createPool()
@@ -19,4 +24,5 @@ if (isProd()) {
 }
 
 export const db = drizzle({ client, schema })
+export const pool = client // Export pool for graceful shutdown
 export default db

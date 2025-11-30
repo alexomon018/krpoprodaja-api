@@ -15,6 +15,13 @@ import citiesRoutes from './routes/citiesRoutes.ts'
 import morgan from 'morgan'
 import { setupSwagger } from './swagger.ts'
 import { csrfTokenMiddleware } from './middleware/csrf.ts'
+import { csrfTokenLimiter } from './middleware/rateLimiting.ts'
+import { requestTimeoutMiddleware } from './middleware/timeout.ts'
+import {
+  performHealthCheck,
+  performLivenessCheck,
+  performReadinessCheck,
+} from './utils/healthCheck.ts'
 
 const app = express()
 
@@ -33,6 +40,7 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser()) // Parse cookies for refresh tokens and CSRF
+app.use(requestTimeoutMiddleware) // Request timeout handling
 app.use(csrfTokenMiddleware) // Attach CSRF token to requests
 app.use(
   morgan('dev', {
@@ -43,17 +51,54 @@ app.use(
 // Setup Swagger documentation
 setupSwagger(app)
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    service: 'KrpoProdaja API',
-  })
+// Health check endpoints
+app.get('/health', async (req, res) => {
+  try {
+    const healthCheck = await performHealthCheck()
+
+    // Return appropriate status code based on health
+    const statusCode =
+      healthCheck.status === 'healthy'
+        ? 200
+        : healthCheck.status === 'degraded'
+          ? 200
+          : 503
+
+    res.status(statusCode).json(healthCheck)
+  } catch (error) {
+    console.error('Health check error:', error)
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      service: 'KrpoProdaja API',
+      error: 'Health check failed',
+    })
+  }
 })
 
-// CSRF token endpoint
-app.get('/api/csrf-token', (req, res) => {
+// Liveness probe (doesn't check dependencies)
+app.get('/health/liveness', (req, res) => {
+  res.status(200).json(performLivenessCheck())
+})
+
+// Readiness probe (checks dependencies)
+app.get('/health/readiness', async (req, res) => {
+  try {
+    const readinessCheck = await performReadinessCheck()
+    const statusCode = readinessCheck.ready ? 200 : 503
+    res.status(statusCode).json(readinessCheck)
+  } catch (error) {
+    console.error('Readiness check error:', error)
+    res.status(503).json({
+      ready: false,
+      timestamp: new Date().toISOString(),
+      error: 'Readiness check failed',
+    })
+  }
+})
+
+// CSRF token endpoint with rate limiting
+app.get('/api/csrf-token', csrfTokenLimiter, (req, res) => {
   res.json({
     csrfToken: req.csrfToken ? req.csrfToken() : null,
   })

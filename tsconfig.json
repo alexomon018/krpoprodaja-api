@@ -1,12 +1,17 @@
 {
   "compilerOptions": {
     "noEmit": true,
-    "target": "esnext",
+    "target": "ES2020",
     "module": "nodenext",
+    "lib": ["ES2020"],
+    "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "rewriteRelativeImportExtensions": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
     "types": ["vitest/globals"]
   }
 }

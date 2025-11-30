@@ -72,6 +72,20 @@ export const phoneVerificationLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter for CSRF token endpoint
+ * Prevents abuse of token generation
+ */
+export const csrfTokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 requests per window per IP
+  message: {
+    error: "Too many CSRF token requests, please try again later",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
  * General API rate limiter
  * Applied to all API routes as a baseline protection
  */

@@ -6,21 +6,30 @@ import {
   verifyRefreshToken,
   parseTokenExpiryToMs,
 } from "../utils/jwt.ts";
-import { jwtRevocationManager } from "../utils/jwtRevocation.ts";
+import { redisJwtRevocationManager } from "../utils/jwtRevocationRedis.ts";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { eq, sql } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../middleware/auth.ts";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../utils/email.ts";
+import { validatePasswordStrength } from "../utils/password.ts";
 import { env } from "../../env.ts";
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { email, password, firstName, lastName } = req.body;
 
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        error: "Password does not meet security requirements",
+        details: passwordValidation.errors,
+      });
+    }
+
     // Hash password
-    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
 
     // Generate a secure verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -30,7 +39,7 @@ export const register = async (req: Request, res: Response) => {
       .digest("hex");
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiry(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Create user with verification token
@@ -271,7 +280,7 @@ export const revokeTokens = async (
     // Revoke all tokens for this user
     // Duration should be at least as long as the longest token lifetime (30 days for refresh tokens)
     const revocationDuration = 30 * 24 * 60 * 60; // 30 days in seconds
-    jwtRevocationManager.revoke(user.id, revocationDuration);
+    await redisJwtRevocationManager.revoke(user.id, revocationDuration);
 
     // Clear the refresh token cookie
     res.clearCookie("refreshToken", {
@@ -288,28 +297,6 @@ export const revokeTokens = async (
     res.status(500).json({ error: "Failed to revoke tokens" });
   }
 };
-
-/**
- * Parse token expiry string (e.g., "1h", "30m", "2d") to milliseconds
- */
-function parseTokenExpiry(expiryString: string): number {
-  const match = expiryString.match(/^(\d+)([smhd])$/);
-  if (!match) {
-    throw new Error("Invalid token expiry format");
-  }
-
-  const value = parseInt(match[1]);
-  const unit = match[2];
-
-  const multipliers = {
-    s: 1000, // seconds
-    m: 60 * 1000, // minutes
-    h: 60 * 60 * 1000, // hours
-    d: 24 * 60 * 60 * 1000, // days
-  };
-
-  return value * multipliers[unit as keyof typeof multipliers];
-}
 
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
@@ -351,7 +338,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       .digest("hex");
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiry(env.PASSWORD_RESET_TOKEN_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(env.PASSWORD_RESET_TOKEN_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with reset token and expiry, reset the used flag
@@ -406,10 +393,12 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 
     // Validate password strength
-    if (newPassword.length < 8) {
-      return res
-        .status(400)
-        .json({ error: "Password must be at least 8 characters long" });
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        error: "Password does not meet security requirements",
+        details: passwordValidation.errors,
+      });
     }
 
     // Hash the token to match against stored hash
@@ -441,8 +430,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 
     // Hash the new password
-    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    const hashedPassword = await bcrypt.hash(newPassword, env.BCRYPT_ROUNDS);
 
     // Update user's password, mark token as used, and clear reset token
     await db
@@ -458,7 +446,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     // Revoke all existing tokens for security
     const revocationDuration = 30 * 24 * 60 * 60; // 30 days in seconds
-    jwtRevocationManager.revoke(user.id, revocationDuration);
+    await redisJwtRevocationManager.revoke(user.id, revocationDuration);
 
     console.log(`Password successfully reset for user: ${user.email}`);
 
@@ -514,7 +502,7 @@ export const sendEmailVerification = async (req: Request, res: Response) => {
       .digest("hex");
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiry(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with verification token and expiry
