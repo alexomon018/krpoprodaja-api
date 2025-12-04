@@ -1,21 +1,19 @@
 import { Router } from 'express'
 import {
   getProfile,
+  getPublicProfile,
   updateProfile,
   changePassword,
   sendPhoneVerification,
   verifyPhone,
   resendPhoneVerification,
 } from '../controllers/userController.ts'
-import { authenticateToken, requireVerifiedEmail } from '../middleware/auth.ts'
+import { authenticateToken, optionalAuth, requireVerifiedEmail } from '../middleware/auth.ts'
 import { validateBody } from '../middleware/validation.ts'
 import { phoneVerificationLimiter } from '../middleware/rateLimiting.ts'
 import { z } from 'zod'
 
 const router = Router()
-
-// Apply authentication to all routes
-router.use(authenticateToken)
 
 // Validation schemas
 const updateProfileSchema = z.object({
@@ -38,13 +36,19 @@ const verifyPhoneSchema = z.object({
 })
 
 // Routes
-router.get('/profile', getProfile)
-router.put('/profile', requireVerifiedEmail, validateBody(updateProfileSchema), updateProfile)
-router.put('/password', requireVerifiedEmail, validateBody(changePasswordSchema), changePassword)
+// IMPORTANT: Specific routes must come before parameterized routes
+// Authenticated user's own profile
+router.get('/profile', authenticateToken, getProfile)
+router.put('/profile', authenticateToken, requireVerifiedEmail, validateBody(updateProfileSchema), updateProfile)
+router.put('/password', authenticateToken, requireVerifiedEmail, validateBody(changePasswordSchema), changePassword)
 
 // Phone verification routes
-router.post('/phone/send-verification', requireVerifiedEmail, phoneVerificationLimiter, validateBody(sendPhoneVerificationSchema), sendPhoneVerification)
-router.post('/phone/verify', requireVerifiedEmail, phoneVerificationLimiter, validateBody(verifyPhoneSchema), verifyPhone)
-router.post('/phone/resend-verification', requireVerifiedEmail, phoneVerificationLimiter, resendPhoneVerification)
+router.post('/phone/send-verification', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, validateBody(sendPhoneVerificationSchema), sendPhoneVerification)
+router.post('/phone/verify', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, validateBody(verifyPhoneSchema), verifyPhone)
+router.post('/phone/resend-verification', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, resendPhoneVerification)
+
+// Public profile endpoint (optional auth - anyone can view)
+// MUST be last because it has a parameter that matches any string
+router.get('/:userId', optionalAuth, getPublicProfile)
 
 export default router
