@@ -60,6 +60,23 @@ const swaggerDocument = {
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      PublicUser: {
+        type: 'object',
+        description: 'Public user profile without sensitive information (email, phone)',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          firstName: { type: 'string' },
+          lastName: { type: 'string' },
+          name: { type: 'string' },
+          avatar: { type: 'string', format: 'uri' },
+          bio: { type: 'string' },
+          location: { type: 'string' },
+          verified: { type: 'boolean', description: 'Email verification status' },
+          verifiedSeller: { type: 'boolean', description: 'Verified seller badge (requires both email and phone verification)' },
+          responseTime: { type: 'string' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
       Product: {
         type: 'object',
         properties: {
@@ -725,11 +742,55 @@ const swaggerDocument = {
         },
       },
     },
+    '/api/users/{userId}': {
+      get: {
+        tags: ['Users'],
+        summary: 'Get public user profile',
+        description: 'Retrieve public information about any user by their ID. Returns only publicly visible information (no email or phone). Authentication is optional.',
+        parameters: [
+          {
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'User ID',
+            example: '648cd76c-42f2-42d1-945d-a3af744cfc66'
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'User profile retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    user: { $ref: '#/components/schemas/PublicUser' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid user ID',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '404': {
+            description: 'User not found',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
     '/api/users/profile': {
       get: {
         tags: ['Users'],
         summary: 'Get current user profile',
-        description: 'Retrieve the authenticated user profile information',
+        description: 'Retrieve the authenticated user own profile information, including sensitive data like email and phone',
         security: [{ bearerAuth: [] }],
         responses: {
           '200': {
@@ -1392,54 +1453,6 @@ const swaggerDocument = {
           },
         },
       },
-    },
-    '/api/upload/image/{key}': {
-      delete: {
-        tags: ['Image Upload'],
-        summary: 'Delete a single image from S3',
-        description: 'Delete an image from S3 by its key. The key should be URL encoded. Requires authentication.',
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: 'key',
-            in: 'path',
-            required: true,
-            schema: { type: 'string' },
-            description: 'S3 object key (URL encoded), e.g., products/image.webp',
-            example: 'products%2Fimage.webp',
-          },
-        ],
-        responses: {
-          '200': {
-            description: 'Image deleted successfully',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    success: { type: 'boolean', example: true },
-                    message: { type: 'string', example: 'Image deleted successfully' },
-                  },
-                },
-              },
-            },
-          },
-          '400': {
-            description: 'Invalid key',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
-          },
-          '401': {
-            description: 'Unauthorized - Authentication required',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
-          },
-          '500': {
-            description: 'Server error during deletion',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
-          },
-        },
-      },
-    },
-    '/api/upload/images': {
       delete: {
         tags: ['Image Upload'],
         summary: 'Delete multiple images from S3',
@@ -1490,6 +1503,52 @@ const swaggerDocument = {
           },
           '400': {
             description: 'Invalid or missing keys/urls',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '401': {
+            description: 'Unauthorized - Authentication required',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error during deletion',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/upload/image/{key}': {
+      delete: {
+        tags: ['Image Upload'],
+        summary: 'Delete a single image from S3',
+        description: 'Delete an image from S3 by its key. The key should be URL encoded. Requires authentication.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'key',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            description: 'S3 object key (URL encoded), e.g., products/image.webp',
+            example: 'products%2Fimage.webp',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Image deleted successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Image deleted successfully' },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid key',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
           '401': {

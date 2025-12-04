@@ -47,6 +47,42 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+export const getPublicProfile = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        name: users.name,
+        avatar: users.avatar,
+        bio: users.bio,
+        location: users.location,
+        verified: users.verified,
+        verifiedSeller: users.verifiedSeller,
+        responseTime: users.responseTime,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error("Get public profile error:", error);
+    res.status(500).json({ error: "Failed to fetch user profile" });
+  }
+};
+
 export const updateProfile = async (
   req: AuthenticatedRequest,
   res: Response
