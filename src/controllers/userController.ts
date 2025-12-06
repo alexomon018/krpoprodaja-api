@@ -1,9 +1,10 @@
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import type { AuthenticatedRequest } from "../middleware/auth.ts";
 import { db } from "../db/connection.ts";
-import { users } from "../db/schema.ts";
-import { eq } from "drizzle-orm";
+import { users, products } from "../db/schema.ts";
+import { eq, and, sql, desc, asc, gte, lte, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import { processProductImages } from "../utils/imageProcessor.ts";
 import {
   generateVerificationCode,
   sendPhoneVerificationSMS,
@@ -47,7 +48,10 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const getPublicProfile = async (req: AuthenticatedRequest, res: Response) => {
+export const getPublicProfile = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
   try {
     const { userId } = req.params;
 
@@ -76,7 +80,26 @@ export const getPublicProfile = async (req: AuthenticatedRequest, res: Response)
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({ user });
+    // Get count of active listings
+    const [activeListings] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(and(eq(products.sellerId, userId), eq(products.status, "active")));
+
+    // Get count of sold items
+    const [soldItems] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(and(eq(products.sellerId, userId), eq(products.status, "sold")));
+
+    const userWithStats = {
+      ...user,
+      activeListings: activeListings?.count || 0,
+      soldItems: soldItems?.count || 0,
+    };
+
+    console.log("user", userWithStats);
+    res.json({ user: userWithStats });
   } catch (error) {
     console.error("Get public profile error:", error);
     res.status(500).json({ error: "Failed to fetch user profile" });
@@ -225,7 +248,9 @@ export const sendPhoneVerification = async (
     const verificationCode = generateVerificationCode();
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiryToMs(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(
+      env.PHONE_VERIFICATION_CODE_EXPIRES_IN
+    );
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with phone number and verification code
@@ -370,7 +395,9 @@ export const resendPhoneVerification = async (
     const verificationCode = generateVerificationCode();
 
     // Calculate expiry time
-    const expiryMs = parseTokenExpiryToMs(env.PHONE_VERIFICATION_CODE_EXPIRES_IN);
+    const expiryMs = parseTokenExpiryToMs(
+      env.PHONE_VERIFICATION_CODE_EXPIRES_IN
+    );
     const expiresAt = new Date(Date.now() + expiryMs);
 
     // Update user with new verification code
@@ -399,5 +426,137 @@ export const resendPhoneVerification = async (
   } catch (error) {
     console.error("Resend phone verification error:", error);
     res.status(500).json({ error: "Failed to resend phone verification" });
+  }
+};
+
+/**
+ * Get a user's products with filtering and pagination
+ * GET /api/users/:userId/products
+ */
+export const getUserProducts = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const {
+      page = "1",
+      limit = "20",
+      status = "active",
+      categoryId,
+      minPrice,
+      maxPrice,
+      condition,
+      sortBy = "newest",
+    } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = Math.min(parseInt(limit as string, 10), 100);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build where conditions
+    const conditions = [eq(products.sellerId, userId)];
+
+    console.log("Fetching products for userId:", userId);
+    console.log("Status filter:", status);
+
+    // Status filter (active|reserved|sold|deleted|all)
+    if (status === "all") {
+      conditions.push(inArray(products.status, ["active", "reserved", "sold"]));
+    } else {
+      conditions.push(eq(products.status, status as string));
+    }
+
+    // Category filter
+    if (categoryId) {
+      conditions.push(eq(products.categoryId, categoryId as string));
+    }
+
+    // Price range filter
+    if (minPrice) {
+      conditions.push(gte(products.price, parseInt(minPrice as string, 10)));
+    }
+    if (maxPrice) {
+      conditions.push(lte(products.price, parseInt(maxPrice as string, 10)));
+    }
+
+    // Condition filter (new|very-good|good|satisfactory - can be multiple)
+    if (condition) {
+      const conditionsArr = Array.isArray(condition) ? condition : [condition];
+      conditions.push(inArray(products.condition, conditionsArr as string[]));
+    }
+
+    // Sorting
+    let orderBy;
+    switch (sortBy) {
+      case "oldest":
+        orderBy = asc(products.createdAt);
+        break;
+      case "price-asc":
+        orderBy = asc(products.price);
+        break;
+      case "price-desc":
+        orderBy = desc(products.price);
+        break;
+      case "newest":
+      default:
+        orderBy = desc(products.createdAt);
+        break;
+    }
+
+    // Get products
+    const productsData = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        price: products.price,
+        originalPrice: products.originalPrice,
+        images: products.images,
+        size: products.size,
+        condition: products.condition,
+        brand: products.brand,
+        location: products.location,
+        status: products.status,
+        viewCount: products.viewCount,
+        favoriteCount: products.favoriteCount,
+        createdAt: products.createdAt,
+      })
+      .from(products)
+      .where(and(...conditions))
+      .orderBy(orderBy)
+      .limit(limitNum)
+      .offset(offset);
+
+    console.log("Raw products from DB:", productsData.length, "items");
+
+    // Get total count for pagination
+    const [{ count: totalCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(and(...conditions));
+
+    console.log("Total count:", totalCount);
+
+    // Process product images (convert S3 keys to presigned URLs if needed)
+    const processedProducts = await Promise.all(
+      productsData.map((product) => processProductImages(product))
+    );
+
+    console.log("Processed products:", processedProducts.length, "items");
+
+    return res.json({
+      data: processedProducts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitNum),
+        hasMore: pageNum < Math.ceil(totalCount / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error("Get user products error:", error);
+    return res.status(500).json({ error: "Failed to fetch user products" });
   }
 };

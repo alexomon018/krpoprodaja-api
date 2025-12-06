@@ -130,82 +130,82 @@ Check the health endpoint: `http://localhost:3000/health`
 
 ### Authentication
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/register` | Register new user | No |
-| POST | `/api/auth/login` | Login user | No |
-| POST | `/api/auth/logout` | Logout user | Yes |
+| Method | Endpoint             | Description       | Auth Required |
+| ------ | -------------------- | ----------------- | ------------- |
+| POST   | `/api/auth/register` | Register new user | No            |
+| POST   | `/api/auth/login`    | Login user        | No            |
+| POST   | `/api/auth/logout`   | Logout user       | Yes           |
 
 ### Users
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/me` | Get current user profile | Yes |
-| PUT | `/api/me` | Update current user profile | Yes |
-| GET | `/api/users/:userId` | Get public user profile | No |
-| GET | `/api/users/:userId/products` | Get user's products | No |
+| Method | Endpoint                      | Description                 | Auth Required |
+| ------ | ----------------------------- | --------------------------- | ------------- |
+| GET    | `/api/me`                     | Get current user profile    | Yes           |
+| PUT    | `/api/me`                     | Update current user profile | Yes           |
+| GET    | `/api/users/:userId`          | Get public user profile     | No            |
+| GET    | `/api/users/:userId/products` | Get user's products         | No            |
 
 ### Products
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/products` | List all products (with filters) | No |
-| GET | `/api/products/:id` | Get product details | No |
-| POST | `/api/products` | Create new product | Yes |
-| PUT | `/api/products/:id` | Update product | Yes (Owner) |
-| DELETE | `/api/products/:id` | Delete product | Yes (Owner) |
-| PATCH | `/api/products/:id/status` | Update product status | Yes (Owner) |
-| GET | `/api/products/:id/similar` | Get similar products | No |
+| Method | Endpoint                    | Description                      | Auth Required |
+| ------ | --------------------------- | -------------------------------- | ------------- |
+| GET    | `/api/products`             | List all products (with filters) | No            |
+| GET    | `/api/products/:id`         | Get product details              | No            |
+| POST   | `/api/products`             | Create new product               | Yes           |
+| PUT    | `/api/products/:id`         | Update product                   | Yes (Owner)   |
+| DELETE | `/api/products/:id`         | Delete product                   | Yes (Owner)   |
+| PATCH  | `/api/products/:id/status`  | Update product status            | Yes (Owner)   |
+| GET    | `/api/products/:id/similar` | Get similar products             | No            |
 
 ### Favorites
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/favorites` | Get user's favorites | Yes |
-| POST | `/api/favorites/:productId` | Add to favorites | Yes |
-| DELETE | `/api/favorites/:productId` | Remove from favorites | Yes |
-| GET | `/api/favorites/check/:productId` | Check if favorited | Yes |
+| Method | Endpoint                          | Description           | Auth Required |
+| ------ | --------------------------------- | --------------------- | ------------- |
+| GET    | `/api/favorites`                  | Get user's favorites  | Yes           |
+| POST   | `/api/favorites/:productId`       | Add to favorites      | Yes           |
+| DELETE | `/api/favorites/:productId`       | Remove from favorites | Yes           |
+| GET    | `/api/favorites/check/:productId` | Check if favorited    | Yes           |
 
 ### Categories
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/categories` | List all categories | No |
+| Method | Endpoint          | Description         | Auth Required |
+| ------ | ----------------- | ------------------- | ------------- |
+| GET    | `/api/categories` | List all categories | No            |
 
 ### Search
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/search` | Search products | No |
-| GET | `/api/search/suggestions` | Get autocomplete suggestions | No |
+| Method | Endpoint                  | Description                  | Auth Required |
+| ------ | ------------------------- | ---------------------------- | ------------- |
+| GET    | `/api/search`             | Search products              | No            |
+| GET    | `/api/search/suggestions` | Get autocomplete suggestions | No            |
 
 ## Query Parameters
 
 ### Product Listing (`GET /api/products`)
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `page` | number | Page number (default: 1) |
-| `limit` | number | Items per page (default: 20, max: 100) |
-| `search` | string | Search query |
-| `category` | string | Category ID filter |
-| `priceMin` | number | Minimum price (RSD) |
-| `priceMax` | number | Maximum price (RSD) |
-| `size` | string[] | Size filter (XS, S, M, L, XL, XXL, XXXL) |
-| `condition` | string[] | Condition filter (new, very-good, good, satisfactory) |
-| `brand` | string | Brand name filter |
-| `color` | string | Color filter |
-| `location` | string | Location filter |
-| `status` | string | Status filter (active, sold, all) |
-| `sort` | string | Sort by (newest, oldest, price-low, price-high, popular) |
+| Parameter   | Type     | Description                                              |
+| ----------- | -------- | -------------------------------------------------------- |
+| `page`      | number   | Page number (default: 1)                                 |
+| `limit`     | number   | Items per page (default: 20, max: 100)                   |
+| `search`    | string   | Search query                                             |
+| `category`  | string   | Category ID filter                                       |
+| `priceMin`  | number   | Minimum price (RSD)                                      |
+| `priceMax`  | number   | Maximum price (RSD)                                      |
+| `size`      | string[] | Size filter (XS, S, M, L, XL, XXL, XXXL)                 |
+| `condition` | string[] | Condition filter (new, very-good, good, satisfactory)    |
+| `brand`     | string   | Brand name filter                                        |
+| `color`     | string   | Color filter                                             |
+| `location`  | string   | Location filter                                          |
+| `status`    | string   | Status filter (active, sold, all)                        |
+| `sort`      | string   | Sort by (newest, oldest, price-low, price-high, popular) |
 
 ### Search (`GET /api/search`)
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `q` | string | Search query (required) |
-| `page` | number | Page number |
-| `limit` | number | Items per page |
+| Parameter | Type   | Description             |
+| --------- | ------ | ----------------------- |
+| `q`       | string | Search query (required) |
+| `page`    | number | Page number             |
+| `limit`   | number | Items per page          |
 
 ## Data Models
 
@@ -320,6 +320,7 @@ src/
 ## Roadmap
 
 ### Phase 1 (Completed)
+
 - [x] User authentication and authorization
 - [x] Product CRUD operations
 - [x] Search and filtering
@@ -328,6 +329,7 @@ src/
 - [x] Database schema for all features
 
 ### Phase 2 (Next Steps)
+
 - [ ] Reviews and ratings controllers
 - [ ] Messaging controllers
 - [ ] Offer/negotiation controllers
@@ -337,6 +339,7 @@ src/
 - [ ] Rate limiting middleware
 
 ### Phase 3 (Future)
+
 - [ ] Admin dashboard
 - [ ] Analytics and reporting
 - [ ] Payment integration (Stripe/PayPal)
@@ -367,6 +370,7 @@ All errors follow a consistent format:
 ```
 
 HTTP Status Codes:
+
 - `200` - Success
 - `201` - Created
 - `400` - Bad Request (validation errors)

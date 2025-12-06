@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   getProfile,
   getPublicProfile,
+  getUserProducts,
   updateProfile,
   changePassword,
   sendPhoneVerification,
@@ -46,6 +47,10 @@ router.put('/password', authenticateToken, requireVerifiedEmail, validateBody(ch
 router.post('/phone/send-verification', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, validateBody(sendPhoneVerificationSchema), sendPhoneVerification)
 router.post('/phone/verify', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, validateBody(verifyPhoneSchema), verifyPhone)
 router.post('/phone/resend-verification', authenticateToken, requireVerifiedEmail, phoneVerificationLimiter, resendPhoneVerification)
+
+// User products endpoint (optional auth - anyone can view)
+// MUST come before /:userId to avoid route conflicts
+router.get('/:userId/products', optionalAuth, getUserProducts)
 
 // Public profile endpoint (optional auth - anyone can view)
 // MUST be last because it has a parameter that matches any string
