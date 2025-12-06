@@ -765,7 +765,18 @@ const swaggerDocument = {
                 schema: {
                   type: 'object',
                   properties: {
-                    user: { $ref: '#/components/schemas/PublicUser' },
+                    user: {
+                      allOf: [
+                        { $ref: '#/components/schemas/PublicUser' },
+                        {
+                          type: 'object',
+                          properties: {
+                            activeListings: { type: 'integer', description: 'Number of active products for sale' },
+                            soldItems: { type: 'integer', description: 'Number of sold products' },
+                          },
+                        },
+                      ],
+                    },
                   },
                 },
               },
@@ -777,6 +788,68 @@ const swaggerDocument = {
           },
           '404': {
             description: 'User not found',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+          '500': {
+            description: 'Server error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+          },
+        },
+      },
+    },
+    '/api/users/{userId}/products': {
+      get: {
+        tags: ['Users', 'Products'],
+        summary: 'Get user products with filtering',
+        description: 'Retrieve all products listed by a specific user with optional filtering and pagination. Public endpoint with optional authentication.',
+        parameters: [
+          {
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'User ID',
+            example: '648cd76c-42f2-42d1-945d-a3af744cfc66'
+          },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 }, description: 'Page number for pagination' },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 }, description: 'Number of items per page (max 100)' },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active', 'reserved', 'sold', 'deleted', 'all'], default: 'active' }, description: 'Filter by product availability status' },
+          { name: 'categoryId', in: 'query', schema: { type: 'string', format: 'uuid' }, description: 'Filter by category ID' },
+          { name: 'minPrice', in: 'query', schema: { type: 'integer' }, description: 'Minimum price filter' },
+          { name: 'maxPrice', in: 'query', schema: { type: 'integer' }, description: 'Maximum price filter' },
+          { name: 'condition', in: 'query', schema: { type: 'string', enum: ['new', 'very-good', 'good', 'satisfactory'] }, description: 'Filter by item condition/quality (can specify multiple)' },
+          { name: 'sortBy', in: 'query', schema: { type: 'string', enum: ['newest', 'oldest', 'price-asc', 'price-desc'], default: 'newest' }, description: 'Sort order' },
+        ],
+        responses: {
+          '200': {
+            description: 'User products retrieved successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    products: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Product' }
+                    },
+                    pagination: {
+                      allOf: [
+                        { $ref: '#/components/schemas/Pagination' },
+                        {
+                          type: 'object',
+                          properties: {
+                            hasMore: { type: 'boolean', description: 'Whether more pages are available' },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid user ID',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
           },
           '500': {
