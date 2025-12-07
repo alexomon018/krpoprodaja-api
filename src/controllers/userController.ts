@@ -11,6 +11,7 @@ import {
 } from "../services/snsService.ts";
 import { parseTokenExpiryToMs } from "../utils/jwt.ts";
 import { env } from "../../env.ts";
+import { getUserProductStats } from "../utils/userStats.ts";
 
 export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -41,7 +42,15 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({ user });
+    // Get product statistics (active listings and sold items)
+    const stats = await getUserProductStats(userId);
+
+    const userWithStats = {
+      ...user,
+      ...stats,
+    };
+
+    res.json({ user: userWithStats });
   } catch (error) {
     console.error("Get profile error:", error);
     res.status(500).json({ error: "Failed to fetch profile" });
@@ -80,22 +89,12 @@ export const getPublicProfile = async (
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Get count of active listings
-    const [activeListings] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(products)
-      .where(and(eq(products.sellerId, userId), eq(products.status, "active")));
-
-    // Get count of sold items
-    const [soldItems] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(products)
-      .where(and(eq(products.sellerId, userId), eq(products.status, "sold")));
+    // Get product statistics (active listings and sold items)
+    const stats = await getUserProductStats(userId);
 
     const userWithStats = {
       ...user,
-      activeListings: activeListings?.count || 0,
-      soldItems: soldItems?.count || 0,
+      ...stats,
     };
 
     console.log("user", userWithStats);
